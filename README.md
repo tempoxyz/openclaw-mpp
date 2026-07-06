@@ -24,10 +24,14 @@ The first version should:
 pnpm install
 pnpm build
 pnpm check
+pnpm smoke
 openclaw plugins install --link .
 openclaw plugins enable mpp
 MPP_PRIVATE_KEY=0x... MPP_ALLOWED_ORIGINS=https://mpp.dev openclaw gateway restart
 ```
+
+Use `MPP_RPC_URL` or `plugins.entries.mpp.config.rpcUrl` to point Tempo calls at a
+custom RPC, such as a local smoke-test node.
 
 ## Implementation plan
 

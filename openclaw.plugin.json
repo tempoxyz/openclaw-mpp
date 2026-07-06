@@ -26,6 +26,10 @@
     "allowedOrigins": {
       "label": "Allowed origins",
       "placeholder": "https://mpp.dev"
+    },
+    "rpcUrl": {
+      "label": "Tempo RPC URL",
+      "placeholder": "https://rpc.moderato.tempo.xyz"
     }
   },
   "configSchema": {
@@ -46,6 +50,10 @@
         "items": {
           "type": "string"
         }
+      },
+      "rpcUrl": {
+        "type": "string",
+        "description": "Optional Tempo RPC URL override."
       }
     }
   }
