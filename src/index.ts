@@ -11,20 +11,12 @@ const configSchema = buildJsonPluginConfigSchema({
   properties: {
     allowedOrigins: {
       type: 'array',
-      description: 'Origins this plugin may pay.',
+      description: 'Optional origins this plugin may pay. Omitted allows any origin.',
       items: { type: 'string' },
     },
     enabled: {
       type: 'boolean',
       description: 'Enable payment-aware fetch at startup.',
-    },
-    privateKey: {
-      type: 'string',
-      description: 'Development-only Tempo account private key.',
-    },
-    rpcUrl: {
-      type: 'string',
-      description: 'Optional Tempo RPC URL override.',
     },
   },
 })
