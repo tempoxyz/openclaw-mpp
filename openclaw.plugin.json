@@ -1,0 +1,52 @@
+{
+  "id": "mpp",
+  "name": "MPP",
+  "description": "Makes OpenClaw HTTP requests payment-aware with MPP.",
+  "version": "0.0.0",
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "mpp_fetch"
+    ]
+  },
+  "toolMetadata": {
+    "mpp_fetch": {
+      "optional": false,
+      "replaySafe": false
+    }
+  },
+  "uiHints": {
+    "privateKey": {
+      "label": "Private key",
+      "sensitive": true,
+      "placeholder": "0x..."
+    },
+    "allowedOrigins": {
+      "label": "Allowed origins",
+      "placeholder": "https://mpp.dev"
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Enable payment-aware fetch at startup."
+      },
+      "privateKey": {
+        "type": "string",
+        "description": "Development-only Tempo account private key."
+      },
+      "allowedOrigins": {
+        "type": "array",
+        "description": "Origins this plugin may pay.",
+        "items": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
