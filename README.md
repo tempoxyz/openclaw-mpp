@@ -29,11 +29,13 @@ openclaw plugins enable mpp
 MPP_PRIVATE_KEY=0x... MPP_ALLOWED_ORIGINS=https://mpp.dev openclaw gateway restart
 ```
 
+Use `MPP_RPC_URL` or `plugins.entries.mpp.config.rpcUrl` to point Tempo calls at a
+custom Tempo RPC.
+
 ## Implementation plan
 
 1. Validate the package shape with OpenClaw locally.
-2. Smoke test `mpp_fetch` against free HTTP, Tempo charge, and Tempo session endpoints.
-3. Confirm startup `Mppx.create(...)` covers fetch calls made by OpenClaw/plugin code after the plugin loads.
-4. Add `wallet.tempo.xyz` setup for Tempo access keys.
-5. Add optional EVM/x402 support with `evm.charge`.
-6. Remove the private package guard and publish behind ClawHub review only after the local UX works end to end.
+2. Confirm startup `Mppx.create(...)` covers fetch calls made by OpenClaw/plugin code after the plugin loads.
+3. Add `wallet.tempo.xyz` setup for Tempo access keys.
+4. Add optional EVM/x402 support with `evm.charge`.
+5. Remove the private package guard and publish behind ClawHub review only after the local UX works end to end.

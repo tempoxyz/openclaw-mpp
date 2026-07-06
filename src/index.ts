@@ -22,6 +22,10 @@ const configSchema = buildJsonPluginConfigSchema({
       type: 'string',
       description: 'Development-only Tempo account private key.',
     },
+    rpcUrl: {
+      type: 'string',
+      description: 'Optional Tempo RPC URL override.',
+    },
   },
 })
 
@@ -67,8 +71,8 @@ export default definePluginEntry({
       async execute(_toolCallId, params, signal) {
         signal?.throwIfAborted()
         const input = readFetchInput(params)
-        const client = createMppx(normalizeConfig(api.pluginConfig))
-        const response = await client.fetch(input.url, {
+        createMppx(normalizeConfig(api.pluginConfig))
+        const response = await fetch(input.url, {
           body: input.body,
           headers: input.headers,
           method: input.method,
