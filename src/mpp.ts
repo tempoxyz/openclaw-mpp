@@ -4,7 +4,7 @@ import { privateKeyToAccount } from 'viem/accounts'
 export type PluginConfig = {
   allowedOrigins?: string[]
   enabled?: boolean
-  privateKey?: `0x${string}`
+  tempoPrivateKey?: `0x${string}`
 }
 
 type MppxClient = ReturnType<typeof Mppx.create>
@@ -17,36 +17,34 @@ let cached:
   | undefined
 
 export function normalizeConfig(input: Record<string, unknown> | undefined): PluginConfig {
-  const envPrivateKey = process.env.MPP_PRIVATE_KEY
+  const envTempoPrivateKey = process.env.TEMPO_PRIVATE_KEY
   const envOrigins = process.env.MPP_ALLOWED_ORIGINS
 
   return {
     allowedOrigins: readStringArray(input?.allowedOrigins) ?? readOriginEnv(envOrigins),
     enabled: typeof input?.enabled === 'boolean' ? input.enabled : true,
-    privateKey:
-      readHexKey(input?.privateKey) ??
-      readHexKey(envPrivateKey),
+    tempoPrivateKey: readHexKey(envTempoPrivateKey),
   }
 }
 
 export function createMppx(config: PluginConfig) {
   if (config.enabled === false) throw new Error('MPP is disabled.')
-  if (!config.privateKey) {
-    throw new Error('Configure plugins.entries.mpp.config.privateKey or MPP_PRIVATE_KEY.')
+  if (!config.tempoPrivateKey) {
+    throw new Error('Configure TEMPO_PRIVATE_KEY in the OpenClaw gateway environment.')
   }
 
   const key = JSON.stringify({
     allowedOrigins: config.allowedOrigins ?? [],
-    privateKey: config.privateKey,
+    tempoPrivateKey: config.tempoPrivateKey,
   })
 
   if (cached?.key === key) return cached.client
 
-  const account = privateKeyToAccount(config.privateKey)
+  const account = privateKeyToAccount(config.tempoPrivateKey)
   const client = Mppx.create({
-    acceptPaymentPolicy: config.allowedOrigins?.length
-      ? { origins: config.allowedOrigins }
-      : undefined,
+    ...(config.allowedOrigins?.length
+      ? { acceptPaymentPolicy: { origins: config.allowedOrigins } }
+      : {}),
     methods: [tempo({ account })],
   })
 

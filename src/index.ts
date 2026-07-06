@@ -11,16 +11,12 @@ const configSchema = buildJsonPluginConfigSchema({
   properties: {
     allowedOrigins: {
       type: 'array',
-      description: 'Origins this plugin may pay.',
+      description: 'Optional origins this plugin may pay. Omitted allows any origin.',
       items: { type: 'string' },
     },
     enabled: {
       type: 'boolean',
       description: 'Enable payment-aware fetch at startup.',
-    },
-    privateKey: {
-      type: 'string',
-      description: 'Development-only Tempo account private key.',
     },
   },
 })
@@ -67,8 +63,8 @@ export default definePluginEntry({
       async execute(_toolCallId, params, signal) {
         signal?.throwIfAborted()
         const input = readFetchInput(params)
-        const client = createMppx(normalizeConfig(api.pluginConfig))
-        const response = await client.fetch(input.url, {
+        createMppx(normalizeConfig(api.pluginConfig))
+        const response = await fetch(input.url, {
           body: input.body,
           headers: input.headers,
           method: input.method,
