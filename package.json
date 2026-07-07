@@ -12,6 +12,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint src tests",
+    "test": "pnpm build && node --test",
     "prepack": "pnpm build"
   },
   "files": [
@@ -30,6 +32,7 @@
   "devDependencies": {
     "@types/node": "^24.0.10",
     "openclaw": "2026.6.11",
+    "oxlint": "^1.72.0",
     "typescript": "^6.0.3"
   },
   "openclaw": {
