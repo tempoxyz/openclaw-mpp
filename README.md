@@ -7,16 +7,18 @@ The package is also marked private until the plugin UX is ready for ClawHub revi
 
 ## v0 goal
 
-Make OpenClaw HTTP requests payment-aware without changing OpenClaw core.
+Make finite OpenClaw HTTP responses payment-aware without changing OpenClaw core.
 
 The first version should:
 
 - load on gateway startup
-- install `mppx` payment-aware fetch for the gateway process
+- install `mppx` payment-aware fetch for finite gateway HTTP responses
 - expose an explicit `mpp_fetch` tool for requests that should use the payment-aware fetch directly
-- support Tempo charge and session challenges
+- support free requests, Tempo charge, and non-streaming Tempo session challenges
 - allow any origin by default, with optional origin restrictions
 - support a gateway `TEMPO_PRIVATE_KEY` while wallet setup is being designed
+
+Paid session streams are out of scope for v0.
 
 ## Local development
 

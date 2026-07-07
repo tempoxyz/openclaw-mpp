@@ -20,7 +20,7 @@
     "README.md"
   ],
   "dependencies": {
-    "mppx": "^0.8.5",
+    "mppx": "^0.8.6",
     "typebox": "^1.3.4",
     "viem": "^2.54.6"
   },
