@@ -1,13 +1,16 @@
 {
   "name": "@tempoxyz/openclaw-mpp",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.0.0-beta.0",
   "description": "Official MPP plugin for OpenClaw.",
   "type": "module",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "tag": "beta"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tempoxyz/openclaw-mpp.git"
+    "url": "git+https://github.com/tempoxyz/openclaw-mpp.git"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

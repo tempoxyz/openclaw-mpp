@@ -2,8 +2,7 @@
 
 Official MPP plugin for OpenClaw.
 
-This repository is private while the integration is being developed and tested.
-The package is also marked private until the plugin UX is ready for ClawHub review.
+This package is published as a beta while the integration is being developed and tested.
 
 ## v0 goal
 
@@ -40,4 +39,4 @@ restrict which origins the plugin may pay.
 2. Confirm startup `Mppx.create(...)` covers fetch calls made by OpenClaw/plugin code after the plugin loads.
 3. Add `wallet.tempo.xyz` setup for Tempo access keys.
 4. Add optional EVM/x402 support with `evm.charge`.
-5. Remove the private package guard and publish behind ClawHub review only after the local UX works end to end.
+5. Publish behind ClawHub review only after the local UX works end to end.
