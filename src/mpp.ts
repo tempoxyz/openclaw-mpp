@@ -45,7 +45,7 @@ export function createMppx(config: PluginConfig) {
     ...(config.allowedOrigins?.length
       ? { acceptPaymentPolicy: { origins: config.allowedOrigins } }
       : {}),
-    methods: [tempo({ account })],
+    methods: [tempo({ account, mode: 'push' })],
   })
 
   cached = { client, key }
