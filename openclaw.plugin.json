@@ -8,11 +8,21 @@
   },
   "contracts": {
     "tools": [
-      "mpp_fetch"
+      "mpp_fetch",
+      "mpp_wallet_status",
+      "mpp_wallet_setup"
     ]
   },
   "toolMetadata": {
     "mpp_fetch": {
+      "optional": false,
+      "replaySafe": false
+    },
+    "mpp_wallet_status": {
+      "optional": false,
+      "replaySafe": true
+    },
+    "mpp_wallet_setup": {
       "optional": false,
       "replaySafe": false
     }

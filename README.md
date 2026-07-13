@@ -45,6 +45,10 @@ the Tempo Wallet store and uses an existing access key:
 }
 ```
 
+Use the `mpp_wallet_status` tool to check whether the configured wallet can pay
+MPP challenges. Use `mpp_wallet_setup` to explicitly create a Tempo Wallet
+access key; startup only hydrates existing keys and never opens setup flows.
+
 ## Implementation plan
 
 1. Validate the package shape with OpenClaw locally.
