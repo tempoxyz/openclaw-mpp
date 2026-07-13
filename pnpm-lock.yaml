@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      accounts:
+        specifier: ^0.15.2
+        version: 0.15.2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(typescript@6.0.3)(viem@2.54.6(typescript@6.0.3)(zod@4.4.3))
       mppx:
         specifier: ^0.8.6
         version: 0.8.6(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.27)(typescript@6.0.3)(viem@2.54.6(typescript@6.0.3)(zod@4.4.3))
@@ -168,6 +171,10 @@ packages:
     resolution: {integrity: sha512-2I0gnIVPtfnMw9ee9h1dJG7tp81+8Ob3OJb3Mv37rx5L40/b0i7djjCVvGOVqc9AEIQyvyu1i6ypKdFw8R8gQw==}
     engines: {node: ^14.21.3 || >=16}
 
+  '@noble/ciphers@2.2.0':
+    resolution: {integrity: sha512-Z6pjIZ/8IJcCGzb2S/0Px5J81yij85xASuk1teLNeg75bfT07MV3a/O2Mtn1I2se43k3lkVEcFaR10N4cgQcZA==}
+    engines: {node: '>= 20.19.0'}
+
   '@noble/curves@1.9.1':
     resolution: {integrity: sha512-k11yZxZg+t+gWvBbIswW0yoJlu8cHOC7dhunwOzoWH/mXGBiYyR4YY6hAEK/3EUs4UpB8la1RfdRpeGsFHkWsA==}
     engines: {node: ^14.21.3 || >=16}
@@ -175,6 +182,10 @@ packages:
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
+
+  '@noble/hashes@2.2.0':
+    resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
+    engines: {node: '>= 20.19.0'}
 
   '@openclaw/fs-safe@0.3.0':
     resolution: {integrity: sha512-uIBE441CIt1kIURoP9qRGKZ8LkGyfD9ZzeESjwAd29ZPWtghws/5GR3Pjb67jKdcJHP1I6roNXcvnhzAU7lHlA==}
@@ -403,6 +414,41 @@ packages:
   accepts@2.0.0:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
+
+  accounts@0.15.2:
+    resolution: {integrity: sha512-cUzutfvhk9Lc+nPEqlPCFnhSv+bNKd+NCIrxgsKgTV5/AUgg5YatkpmO/pm9fYGHXe7WKjvMyiuOeY08a0H9jA==}
+    peerDependencies:
+      '@privy-io/react-auth': '>=3.25.0'
+      '@react-native-async-storage/async-storage': ^3.0.2
+      '@wagmi/core': '>=3.4.3'
+      expo-secure-store: ^55.0.12
+      expo-web-browser: ^55.0.13
+      react: '>=18'
+      react-native-mmkv: ^4.3.1
+      react-native-nitro-modules: ^0.35.9
+      viem: '>=2.54.0'
+      wagmi: '>=0.0.0'
+    peerDependenciesMeta:
+      '@privy-io/react-auth':
+        optional: true
+      '@react-native-async-storage/async-storage':
+        optional: true
+      '@wagmi/core':
+        optional: true
+      expo-secure-store:
+        optional: true
+      expo-web-browser:
+        optional: true
+      react:
+        optional: true
+      react-native-mmkv:
+        optional: true
+      react-native-nitro-modules:
+        optional: true
+      viem:
+        optional: true
+      wagmi:
+        optional: true
 
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
@@ -818,6 +864,9 @@ packages:
     resolution: {integrity: sha512-IKXpvIzjnC9XTAUbVBcMfGS0EPaIXtW6v+zr+RRp+hqULEpo0owZax6wyRwPOJbWbzjYspQwusTsfVr0ifh4uQ==}
     engines: {node: '>=0.10.0'}
 
+  idb-keyval@6.3.0:
+    resolution: {integrity: sha512-um+2dgAWmYsu615EXpWVwSmapJhON0G43t3Ka/EVaohzPQXSMqKEqeDK/oIW3Ow+BXaF2PvSc+oBTFp793A5Ow==}
+
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
 
@@ -965,6 +1014,14 @@ packages:
   minizlib@3.1.0:
     resolution: {integrity: sha512-KZxYo1BUkWD2TVFLr0MQoM8vUUigWD3LlD83a/75BqC+4qE0Hb1Vo5v1FgcfaNXvfXzr+5EhQ6ing/CaBijTlw==}
     engines: {node: '>= 18'}
+
+  mipd@0.0.7:
+    resolution: {integrity: sha512-aAPZPNDQ3uMTdKbuO2YmAw2TxLHO0moa4YKAyETM/DTj5FloZo+a+8tU+iv4GmW+sOxKLSRwcSFuczk+Cpt6fg==}
+    peerDependencies:
+      typescript: '>=5.0.4'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
 
   mppx@0.8.6:
     resolution: {integrity: sha512-JND+libFbDer9V9oLwqohBF5TU+QNByPf7uKF6nlVniEJzmBTLpfnENO99K7PNBUZZzEOPIVjeNC1sF9FnJjUA==}
@@ -1409,6 +1466,17 @@ packages:
       typescript:
         optional: true
 
+  wata@0.4.0:
+    resolution: {integrity: sha512-VpO6aG6COD/TmiGEhSO4SzV8eWfOEgKUKWTT339xRQIfIiQWAlJ1c6WQ0DM8bMaaRnUNHegsdg1rt+u21xwqLg==}
+    peerDependencies:
+      expo-crypto: '*'
+      react: '>=18'
+    peerDependenciesMeta:
+      expo-crypto:
+        optional: true
+      react:
+        optional: true
+
   web-push@3.6.7:
     resolution: {integrity: sha512-OpiIUe8cuGjrj3mMBFWY+e4MMIkW3SVT+7vEIjvD9kejGUypv8GPDf84JdPWskK8zMRIJ6xYGm+Kxr8YkPyA0A==}
     engines: {node: '>= 16'}
@@ -1420,6 +1488,9 @@ packages:
 
   web-tree-sitter@0.26.9:
     resolution: {integrity: sha512-YJwSHANl6XFgeEjB8nitgj0qZYt5gkIesJ4w2srS2wcLB4GUa4xcOkM0YaMsU6WNR53YVIkDSY7Ej4pf3IXtCA==}
+
+  webauthx@0.1.2:
+    resolution: {integrity: sha512-J0H9/BOW/aRtWa/rKsGjf1+YQ5xkfgycTT455fsHyqG4+hYJ5dPDrNcIXrjGnjBKGru/qxY75m68iHg27rHoUg==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -1497,6 +1568,24 @@ packages:
 
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
+  zustand@5.0.14:
+    resolution: {integrity: sha512-/8tAspM5LMPr28b3fwLYrtdj77ECpfZviaP75CMTnwO8ISyaE4GDIG/9rDDYq/cH9D2Xw2A2RXglLInmVBQB/g==}
+    engines: {node: '>=12.20.0'}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      immer: '>=9.0.6'
+      react: '>=18.0.0'
+      use-sync-external-store: '>=1.2.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      immer:
+        optional: true
+      react:
+        optional: true
+      use-sync-external-store:
+        optional: true
 
 snapshots:
 
@@ -1646,11 +1735,15 @@ snapshots:
 
   '@noble/ciphers@1.3.0': {}
 
+  '@noble/ciphers@2.2.0': {}
+
   '@noble/curves@1.9.1':
     dependencies:
       '@noble/hashes': 1.8.0
 
   '@noble/hashes@1.8.0': {}
+
+  '@noble/hashes@2.2.0': {}
 
   '@openclaw/fs-safe@0.3.0':
     optionalDependencies:
@@ -1794,6 +1887,30 @@ snapshots:
     dependencies:
       mime-types: 3.0.2
       negotiator: 1.0.0
+
+  accounts@0.15.2(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(typescript@6.0.3)(viem@2.54.6(typescript@6.0.3)(zod@4.4.3)):
+    dependencies:
+      hono: 4.12.27
+      idb-keyval: 6.3.0
+      jose: 6.2.3
+      mipd: 0.0.7(typescript@6.0.3)
+      mppx: 0.8.6(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.27)(typescript@6.0.3)(viem@2.54.6(typescript@6.0.3)(zod@4.4.3))
+      ox: 0.14.30(typescript@6.0.3)(zod@4.4.3)
+      wata: 0.4.0(typescript@6.0.3)
+      webauthx: 0.1.2(typescript@6.0.3)(zod@4.4.3)
+      zod: 4.4.3
+      zustand: 5.0.14
+    optionalDependencies:
+      viem: 2.54.6(typescript@6.0.3)(zod@4.4.3)
+    transitivePeerDependencies:
+      - '@modelcontextprotocol/sdk'
+      - '@types/react'
+      - elysia
+      - expo-crypto
+      - express
+      - immer
+      - typescript
+      - use-sync-external-store
 
   agent-base@7.1.4: {}
 
@@ -2225,6 +2342,8 @@ snapshots:
     dependencies:
       safer-buffer: 2.1.2
 
+  idb-keyval@6.3.0: {}
+
   ieee754@1.2.1: {}
 
   ignore@7.0.5: {}
@@ -2345,6 +2464,10 @@ snapshots:
   minizlib@3.1.0:
     dependencies:
       minipass: 7.1.3
+
+  mipd@0.0.7(typescript@6.0.3):
+    optionalDependencies:
+      typescript: 6.0.3
 
   mppx@0.8.6(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(express@5.2.1)(hono@4.12.27)(typescript@6.0.3)(viem@2.54.6(typescript@6.0.3)(zod@4.4.3)):
     dependencies:
@@ -2868,6 +2991,17 @@ snapshots:
       - utf-8-validate
       - zod
 
+  wata@0.4.0(typescript@6.0.3):
+    dependencies:
+      '@hono/node-server': 1.19.14(hono@4.12.27)
+      '@noble/ciphers': 2.2.0
+      '@noble/hashes': 2.2.0
+      hono: 4.12.27
+      ox: 0.14.30(typescript@6.0.3)(zod@4.4.3)
+      zod: 4.4.3
+    transitivePeerDependencies:
+      - typescript
+
   web-push@3.6.7:
     dependencies:
       asn1.js: 5.4.1
@@ -2881,6 +3015,13 @@ snapshots:
   web-streams-polyfill@3.3.3: {}
 
   web-tree-sitter@0.26.9: {}
+
+  webauthx@0.1.2(typescript@6.0.3)(zod@4.4.3):
+    dependencies:
+      ox: 0.14.30(typescript@6.0.3)(zod@4.4.3)
+    transitivePeerDependencies:
+      - typescript
+      - zod
 
   webidl-conversions@3.0.1: {}
 
@@ -2955,3 +3096,5 @@ snapshots:
       zod: 4.4.3
 
   zod@4.4.3: {}
+
+  zustand@5.0.14: {}
