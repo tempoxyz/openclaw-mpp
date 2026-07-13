@@ -17,12 +17,6 @@
       "replaySafe": false
     }
   },
-  "uiHints": {
-    "allowedOrigins": {
-      "label": "Allowed origins",
-      "placeholder": "https://mpp.dev"
-    }
-  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -30,13 +24,6 @@
       "enabled": {
         "type": "boolean",
         "description": "Enable payment-aware fetch at startup."
-      },
-      "allowedOrigins": {
-        "type": "array",
-        "description": "Optional origins this plugin may pay. Omitted allows any origin.",
-        "items": {
-          "type": "string"
-        }
       }
     }
   }

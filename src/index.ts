@@ -9,11 +9,6 @@ const configSchema = buildJsonPluginConfigSchema({
   type: 'object',
   additionalProperties: false,
   properties: {
-    allowedOrigins: {
-      type: 'array',
-      description: 'Optional origins this plugin may pay. Omitted allows any origin.',
-      items: { type: 'string' },
-    },
     enabled: {
       type: 'boolean',
       description: 'Enable payment-aware fetch at startup.',
