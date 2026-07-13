@@ -2,7 +2,7 @@
   "id": "mpp",
   "name": "MPP",
   "description": "Makes OpenClaw HTTP requests payment-aware with MPP.",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "activation": {
     "onStartup": true
   },
