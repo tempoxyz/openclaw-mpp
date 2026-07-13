@@ -1,14 +1,61 @@
+import { Provider as TempoProvider, Storage as TempoStorage } from 'accounts/cli'
 import { Mppx, tempo } from 'mppx/client'
 import { privateKeyToAccount } from 'viem/accounts'
+import { tempo as tempoChain } from 'viem/tempo/chains'
 
 export type PluginConfig = {
   enabled?: boolean
-  tempoPrivateKey?: `0x${string}`
+  wallet: WalletConfig
+}
+
+type WalletConfig = TempoWalletConfig
+type TempoWalletConfig = {
+  type: 'tempo'
+  privateKey?: `0x${string}`
+  accessKey?: `0x${string}`
+  storagePath?: string
+}
+type WalletSource = {
+  cacheKey: {
+    source: 'tempo'
+    accessKey?: `0x${string}`
+    chainId?: number
+    privateKey?: `0x${string}`
+    storagePath?: string
+  }
+  parameters: Partial<TempoParameters>
 }
 
 type MppxClient = ReturnType<typeof Mppx.create>
+type TempoParameters = NonNullable<Parameters<typeof tempo>[0]>
 type PaymentFetch = typeof globalThis.fetch & {
   [originalFetch]?: typeof globalThis.fetch
+}
+type StoredAccessKey = {
+  access?: string
+  address?: string
+  chainId?: number
+}
+type StoredAccount = {
+  address: string
+}
+type TempoStore = {
+  getState: () => {
+    accessKeys: readonly StoredAccessKey[]
+    accounts: readonly StoredAccount[]
+    activeAccount: number
+    chainId: number
+  }
+  persist?: {
+    hasHydrated?: () => boolean
+    rehydrate?: () => Promise<void> | void
+  }
+  setState: (state: { chainId: number }) => void
+}
+type TempoProviderInstance = {
+  getAccount: () => TempoParameters['account']
+  getMppxParameters: (options: { accessKey?: `0x${string}` }) => Partial<TempoParameters>
+  store: TempoStore
 }
 
 const originalFetch = Symbol('mpp.openclaw.originalFetch')
@@ -21,31 +68,23 @@ let cached:
   | undefined
 
 export function normalizeConfig(input: Record<string, unknown> | undefined): PluginConfig {
-  const envTempoPrivateKey = process.env.TEMPO_PRIVATE_KEY
-
   return {
     enabled: typeof input?.enabled === 'boolean' ? input.enabled : true,
-    tempoPrivateKey: readHexKey(envTempoPrivateKey),
+    wallet: readWalletConfig(input?.wallet),
   }
 }
 
-export function createMppx(config: PluginConfig) {
+export async function createMppx(config: PluginConfig) {
   if (config.enabled === false) throw new Error('MPP is disabled.')
-  if (!config.tempoPrivateKey) {
-    throw new Error('Configure TEMPO_PRIVATE_KEY in the OpenClaw gateway environment.')
-  }
-
-  const key = JSON.stringify({
-    tempoPrivateKey: config.tempoPrivateKey,
-  })
+  const source = await resolveWalletSource(config)
+  const key = JSON.stringify(source.cacheKey)
 
   if (cached?.key === key) return cached.client
 
   const fetch = unwrapFetch(globalThis.fetch)
-  const account = privateKeyToAccount(config.tempoPrivateKey)
   const client = Mppx.create({
     fetch,
-    methods: [tempo({ account, mode: 'push' })],
+    methods: [tempo({ ...source.parameters, mode: 'push' })],
     polyfill: false,
   })
   ;(client.fetch as PaymentFetch)[originalFetch] = fetch
@@ -56,10 +95,115 @@ export function createMppx(config: PluginConfig) {
   return client
 }
 
-function readHexKey(value: unknown): `0x${string}` | undefined {
+async function resolveWalletSource(config: PluginConfig): Promise<WalletSource> {
+  const wallet = config.wallet
+  if (wallet.privateKey)
+    return {
+      cacheKey: {
+        privateKey: wallet.privateKey,
+        source: 'tempo',
+      },
+      parameters: {
+        account: privateKeyToAccount(wallet.privateKey),
+      },
+    }
+
+  const provider = TempoProvider.create({
+    chains: [tempoChain],
+    mpp: false,
+    storage: wallet.storagePath
+      ? TempoStorage.filesystem({ path: wallet.storagePath })
+      : TempoStorage.filesystem(),
+  }) as TempoProviderInstance
+  await hydrateStore(provider.store)
+  provider.store.setState({ chainId: tempoChain.id })
+
+  const accessKey = selectAccessKey(provider.store.getState(), wallet.accessKey)
+  return {
+    cacheKey: {
+      accessKey,
+      chainId: tempoChain.id,
+      source: 'tempo',
+      storagePath: wallet.storagePath ?? 'default',
+    },
+    parameters: {
+      account: provider.getAccount(),
+      ...provider.getMppxParameters({ accessKey }),
+    },
+  }
+}
+
+async function hydrateStore(store: TempoStore) {
+  if (!store.persist?.rehydrate || store.persist.hasHydrated?.()) return
+  await store.persist.rehydrate()
+}
+
+export function selectAccessKey(
+  state: ReturnType<TempoStore['getState']>,
+  requestedAccessKey: `0x${string}` | undefined,
+) {
+  const account = state.accounts[state.activeAccount]?.address
+  if (!account)
+    throw new Error('Connect Tempo Wallet or configure a Tempo private key before enabling MPP.')
+
+  const accessKey = state.accessKeys.find((key) => {
+    const stored = key as StoredAccessKey
+    if (!stored.address) return false
+    if (stored.chainId !== undefined && stored.chainId !== state.chainId) return false
+    if (!stored.access || !sameAddress(stored.access, account)) return false
+    if (requestedAccessKey) return sameAddress(stored.address, requestedAccessKey)
+    return true
+  }) as StoredAccessKey | undefined
+
+  if (!accessKey?.address) {
+    if (requestedAccessKey)
+      throw new Error(`Tempo Wallet access key ${requestedAccessKey} is not available locally.`)
+    throw new Error('Create a Tempo Wallet access key before enabling MPP payments.')
+  }
+
+  return accessKey.address as `0x${string}`
+}
+
+function readPrivateKey(value: unknown): `0x${string}` | undefined {
   if (typeof value !== 'string') return undefined
   if (!/^0x[0-9a-fA-F]{64}$/.test(value)) return undefined
   return value as `0x${string}`
+}
+
+function readWalletConfig(value: unknown): WalletConfig {
+  const env = readEnvWalletConfig()
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    return { type: 'tempo', ...env }
+
+  const input = value as Record<string, unknown>
+  const type = input.type === undefined || input.type === 'tempo' ? 'tempo' : undefined
+  if (!type) throw new Error(`Unsupported wallet type "${String(input.type)}".`)
+
+  const accessKey = readAddress(input.accessKey)
+  const privateKey = readPrivateKey(input.privateKey) ?? env.privateKey
+  const storagePath = typeof input.storagePath === 'string' ? input.storagePath : undefined
+
+  return {
+    type,
+    ...(accessKey ? { accessKey } : {}),
+    ...(privateKey ? { privateKey } : {}),
+    ...(storagePath ? { storagePath } : {}),
+  }
+}
+
+function readEnvWalletConfig(): Partial<TempoWalletConfig> {
+  const privateKey = readPrivateKey(process.env.TEMPO_PRIVATE_KEY)
+  return privateKey ? { privateKey } : {}
+}
+
+function readAddress(value: unknown): `0x${string}` | undefined {
+  if (typeof value !== 'string') return undefined
+  if (!/^0x[0-9a-fA-F]{40}$/.test(value)) return undefined
+  return value as `0x${string}`
+}
+
+function sameAddress(a: string, b: string) {
+  return a.toLowerCase() === b.toLowerCase()
 }
 
 function unwrapFetch(fetch: typeof globalThis.fetch) {

@@ -16,7 +16,7 @@ The first version should:
 - install `mppx` payment-aware fetch for finite gateway HTTP responses
 - expose an explicit `mpp_fetch` tool for requests that should use the payment-aware fetch directly
 - support free requests, Tempo charge, and non-streaming Tempo session challenges
-- support a gateway `TEMPO_PRIVATE_KEY` while wallet setup is being designed
+- support a gateway `TEMPO_PRIVATE_KEY` or an existing Tempo Wallet access key
 
 Paid session streams are out of scope for v0.
 
@@ -29,6 +29,20 @@ pnpm check
 openclaw plugins install --link .
 openclaw plugins enable mpp
 TEMPO_PRIVATE_KEY=0x... openclaw gateway run
+```
+
+The default wallet source is Tempo. Without `TEMPO_PRIVATE_KEY`, the plugin reads
+the Tempo Wallet store and uses an existing access key:
+
+```json
+{
+  "enabled": true,
+  "wallet": {
+    "type": "tempo",
+    "accessKey": "0x...",
+    "storagePath": "~/.tempo/wallet/store.json"
+  }
+}
 ```
 
 ## Implementation plan

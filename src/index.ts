@@ -13,6 +13,30 @@ const configSchema = buildJsonPluginConfigSchema({
       type: 'boolean',
       description: 'Enable payment-aware fetch at startup.',
     },
+    wallet: {
+      type: 'object',
+      additionalProperties: false,
+      description: 'Wallet source used to pay MPP challenges.',
+      properties: {
+        type: {
+          type: 'string',
+          enum: ['tempo'],
+          description: 'Wallet provider.',
+        },
+        accessKey: {
+          type: 'string',
+          description: 'Specific Tempo Wallet access key address to use.',
+        },
+        privateKey: {
+          type: 'string',
+          description: 'Tempo private key. Prefer TEMPO_PRIVATE_KEY for local use.',
+        },
+        storagePath: {
+          type: 'string',
+          description: 'Path to the Tempo Wallet store.',
+        },
+      },
+    },
   },
 })
 
@@ -42,12 +66,10 @@ export default definePluginEntry({
     const config = normalizeConfig(api.pluginConfig)
 
     if (api.registrationMode === 'full' && config.enabled !== false) {
-      try {
-        createMppx(config)
-        api.logger.info('MPP payment-aware fetch initialized.')
-      } catch (error) {
-        api.logger.warn(formatError(error))
-      }
+      void createMppx(config).then(
+        () => api.logger.info('MPP payment-aware fetch initialized.'),
+        (error) => api.logger.warn(formatError(error)),
+      )
     }
 
     api.registerTool({
@@ -58,7 +80,7 @@ export default definePluginEntry({
       async execute(_toolCallId, params, signal) {
         signal?.throwIfAborted()
         const input = readFetchInput(params)
-        createMppx(normalizeConfig(api.pluginConfig))
+        await createMppx(normalizeConfig(api.pluginConfig))
         const response = await fetch(input.url, {
           body: input.body,
           headers: input.headers,
