@@ -2,12 +2,16 @@ import { Mppx, tempo } from 'mppx/client'
 import { privateKeyToAccount } from 'viem/accounts'
 
 export type PluginConfig = {
-  allowedOrigins?: string[]
   enabled?: boolean
   tempoPrivateKey?: `0x${string}`
 }
 
 type MppxClient = ReturnType<typeof Mppx.create>
+type PaymentFetch = typeof globalThis.fetch & {
+  [originalFetch]?: typeof globalThis.fetch
+}
+
+const originalFetch = Symbol('mpp.openclaw.originalFetch')
 
 let cached:
   | {
@@ -18,10 +22,8 @@ let cached:
 
 export function normalizeConfig(input: Record<string, unknown> | undefined): PluginConfig {
   const envTempoPrivateKey = process.env.TEMPO_PRIVATE_KEY
-  const envOrigins = process.env.MPP_ALLOWED_ORIGINS
 
   return {
-    allowedOrigins: readStringArray(input?.allowedOrigins) ?? readOriginEnv(envOrigins),
     enabled: typeof input?.enabled === 'boolean' ? input.enabled : true,
     tempoPrivateKey: readHexKey(envTempoPrivateKey),
   }
@@ -34,19 +36,21 @@ export function createMppx(config: PluginConfig) {
   }
 
   const key = JSON.stringify({
-    allowedOrigins: config.allowedOrigins ?? [],
     tempoPrivateKey: config.tempoPrivateKey,
   })
 
   if (cached?.key === key) return cached.client
 
+  const fetch = unwrapFetch(globalThis.fetch)
   const account = privateKeyToAccount(config.tempoPrivateKey)
   const client = Mppx.create({
-    ...(config.allowedOrigins?.length
-      ? { acceptPaymentPolicy: { origins: config.allowedOrigins } }
-      : {}),
+    fetch,
     methods: [tempo({ account, mode: 'push' })],
+    polyfill: false,
   })
+  ;(client.fetch as PaymentFetch)[originalFetch] = fetch
+
+  globalThis.fetch = client.fetch
 
   cached = { client, key }
   return client
@@ -58,16 +62,6 @@ function readHexKey(value: unknown): `0x${string}` | undefined {
   return value as `0x${string}`
 }
 
-function readOriginEnv(value: string | undefined) {
-  if (!value) return undefined
-  return value
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean)
-}
-
-function readStringArray(value: unknown) {
-  if (!Array.isArray(value)) return undefined
-  const items = value.filter((item): item is string => typeof item === 'string')
-  return items.length ? items : undefined
+function unwrapFetch(fetch: typeof globalThis.fetch) {
+  return (fetch as PaymentFetch)[originalFetch] ?? fetch
 }

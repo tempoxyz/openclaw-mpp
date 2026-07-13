@@ -14,7 +14,6 @@ The first version should:
 - install `mppx` payment-aware fetch for finite gateway HTTP responses
 - expose an explicit `mpp_fetch` tool for requests that should use the payment-aware fetch directly
 - support free requests, Tempo charge, and non-streaming Tempo session challenges
-- allow any origin by default, with optional origin restrictions
 - support a gateway `TEMPO_PRIVATE_KEY` while wallet setup is being designed
 
 Paid session streams are out of scope for v0.
@@ -29,9 +28,6 @@ openclaw plugins install --link .
 openclaw plugins enable mpp
 TEMPO_PRIVATE_KEY=0x... openclaw gateway run
 ```
-
-Use `MPP_ALLOWED_ORIGINS` or `plugins.entries.mpp.config.allowedOrigins` to
-restrict which origins the plugin may pay.
 
 ## Implementation plan
 
