@@ -2,7 +2,9 @@
 
 Official MPP plugin for OpenClaw.
 
-This package is published as a beta while the integration is being developed and tested.
+```bash
+openclaw plugins install @tempoxyz/openclaw-mpp
+```
 
 ## v0 goal
 
