@@ -1,6 +1,6 @@
 {
   "name": "@tempoxyz/openclaw-mpp",
-  "version": "0.0.0-beta.0",
+  "version": "0.0.0-beta.1",
   "description": "Official MPP plugin for OpenClaw.",
   "type": "module",
   "license": "MIT",
