@@ -3,7 +3,7 @@ import {
   definePluginEntry,
 } from 'openclaw/plugin-sdk/plugin-entry'
 import { Type } from 'typebox'
-import { createMppx, normalizeConfig } from './mpp.js'
+import { createMppx, getWalletStatus, normalizeConfig, setupWallet } from './mpp.js'
 
 const configSchema = buildJsonPluginConfigSchema({
   type: 'object',
@@ -49,12 +49,24 @@ const requestInitSchema = Type.Object(
   },
   { additionalProperties: false },
 )
+const walletSetupSchema = Type.Object(
+  {
+    showDeposit: Type.Optional(
+      Type.Boolean({ description: 'Show the Tempo Wallet deposit flow during setup.' }),
+    ),
+  },
+  { additionalProperties: false },
+)
+const emptySchema = Type.Object({}, { additionalProperties: false })
 
 type FetchInput = {
   body?: string
   headers?: Record<string, string>
   method?: string
   url: string
+}
+type WalletSetupInput = {
+  showDeposit?: boolean
 }
 
 export default definePluginEntry({
@@ -104,6 +116,32 @@ export default definePluginEntry({
         }
       },
     })
+
+    api.registerTool({
+      name: 'mpp_wallet_status',
+      label: 'MPP wallet status',
+      description: 'Show whether the configured MPP wallet can pay challenges.',
+      parameters: emptySchema,
+      async execute(_toolCallId, _params, signal) {
+        signal?.throwIfAborted()
+        const status = await getWalletStatus(normalizeConfig(api.pluginConfig))
+        return jsonToolResult(status)
+      },
+    })
+
+    api.registerTool({
+      name: 'mpp_wallet_setup',
+      label: 'MPP wallet setup',
+      description: 'Create a Tempo Wallet access key for MPP payments.',
+      parameters: walletSetupSchema,
+      async execute(_toolCallId, params, signal) {
+        signal?.throwIfAborted()
+        const config = normalizeConfig(api.pluginConfig)
+        const status = await setupWallet(config, readWalletSetupInput(params))
+        if (config.enabled !== false && status.ready) await createMppx(config)
+        return jsonToolResult(status)
+      },
+    })
   },
 })
 
@@ -132,6 +170,19 @@ function readHeaders(value: unknown) {
   }
 
   return Object.keys(headers).length ? headers : undefined
+}
+
+function readWalletSetupInput(params: unknown): WalletSetupInput {
+  if (!params || typeof params !== 'object') return {}
+  const value = params as Record<string, unknown>
+  return typeof value.showDeposit === 'boolean' ? { showDeposit: value.showDeposit } : {}
+}
+
+function jsonToolResult(details: unknown) {
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify(details) }],
+    details,
+  }
 }
 
 function formatError(error: unknown) {
