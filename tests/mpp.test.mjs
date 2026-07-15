@@ -3,8 +3,17 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
+import { privateKeyToAccount } from 'viem/accounts'
 
-import { createMppx, getWalletStatus, normalizeConfig, selectAccessKey, setupWallet } from '../dist/mpp.js'
+import { createPaymentClient } from '../dist/payment-fetch.js'
+import {
+  closeMppx,
+  createMppx,
+  getWalletStatus,
+  normalizeConfig,
+  selectAccessKey,
+  setupWallet,
+} from '../dist/mpp.js'
 
 const originalTempoPrivateKey = process.env.TEMPO_PRIVATE_KEY
 const originalFetch = globalThis.fetch
@@ -14,7 +23,8 @@ const rootB = `0x${'b'.repeat(40)}`
 const accessKeyA = `0x${'2'.repeat(40)}`
 const accessKeyB = `0x${'3'.repeat(40)}`
 
-afterEach(() => {
+afterEach(async () => {
+  await closeMppx()
   restoreEnv('TEMPO_PRIVATE_KEY', originalTempoPrivateKey)
   globalThis.fetch = originalFetch
 })
@@ -188,10 +198,11 @@ test('does not create a replacement for a missing configured access key', async 
 
 test('installs payment-aware fetch', async () => {
   const calls = []
-  globalThis.fetch = async (input, init) => {
+  const rawFetch = async (input, init) => {
     calls.push({ headers: requestHeaders(input, init) })
     return new Response('ok')
   }
+  globalThis.fetch = rawFetch
 
   await createMppx({
     wallet: {
@@ -205,6 +216,57 @@ test('installs payment-aware fetch', async () => {
   assert.equal(response.status, 200)
   assert.equal(calls.length, 1)
   assert.equal(calls[0].headers.has('accept-payment'), true)
+  await closeMppx()
+  assert.equal(globalThis.fetch, rawFetch)
+})
+
+test('preserves Request method and body', async () => {
+  let received
+  const client = createPaymentClient(
+    { account: privateKeyToAccount(key) },
+    async (input, init) => {
+      const request = new Request(input, init)
+      received = {
+        body: await request.text(),
+        method: request.method,
+      }
+      return new Response('ok')
+    },
+  )
+
+  const response = await client.fetch(
+    new Request('https://pay.example.com/free', {
+      body: 'hello',
+      method: 'POST',
+    }),
+  )
+
+  assert.equal(response.status, 200)
+  assert.deepEqual(received, { body: 'hello', method: 'POST' })
+  await client.close()
+})
+
+test('passes through free SSE responses', async () => {
+  const upstream = new Response('event: update\nid: 7\nretry: 1000\ndata: hello\n\n', {
+    headers: {
+      'content-type': 'text/event-stream',
+      'x-upstream': 'preserved',
+    },
+  })
+  const client = createPaymentClient(
+    { account: privateKeyToAccount(key) },
+    async () => upstream,
+  )
+
+  const response = await client.fetch('https://stream.example.com/free', {
+    headers: { accept: 'text/event-stream' },
+  })
+
+  assert.equal(response.status, 200)
+  assert.equal(response, upstream)
+  assert.equal(response.headers.get('x-upstream'), 'preserved')
+  assert.equal(await response.text(), 'event: update\nid: 7\nretry: 1000\ndata: hello\n\n')
+  await client.close()
 })
 
 function requestHeaders(input, init) {

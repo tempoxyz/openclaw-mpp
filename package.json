@@ -25,7 +25,7 @@
   ],
   "dependencies": {
     "accounts": "^0.15.2",
-    "mppx": "^0.8.7",
+    "mppx": "https://pkg.pr.new/mppx@7110d59",
     "typebox": "^1.3.4",
     "viem": "^2.54.6"
   },

@@ -1,7 +1,8 @@
 import { Provider as TempoProvider, Storage as TempoStorage } from 'accounts/cli'
-import { Mppx, tempo } from 'mppx/client'
+import { tempo } from 'mppx/client'
 import { privateKeyToAccount } from 'viem/accounts'
 import { tempo as tempoChain } from 'viem/tempo/chains'
+import { createPaymentClient } from './payment-fetch.js'
 
 export type PluginConfig = {
   enabled?: boolean
@@ -37,7 +38,7 @@ export type WalletStatus = {
   wallet: 'tempo'
 }
 
-type MppxClient = ReturnType<typeof Mppx.create>
+type MppxClient = ReturnType<typeof createPaymentClient>
 type TempoParameters = NonNullable<Parameters<typeof tempo>[0]>
 type PaymentFetch = typeof globalThis.fetch & {
   [originalFetch]?: typeof globalThis.fetch
@@ -99,19 +100,28 @@ export async function createMppx(config: PluginConfig) {
   const key = JSON.stringify(source.cacheKey)
 
   if (cached?.key === key) return cached.client
+  if (cached) await closeMppx()
 
   const fetch = unwrapFetch(globalThis.fetch)
-  const client = Mppx.create({
-    fetch,
-    methods: [tempo({ ...source.parameters, mode: 'push' })],
-    polyfill: false,
-  })
+  const client = createPaymentClient(source.parameters, fetch)
   ;(client.fetch as PaymentFetch)[originalFetch] = fetch
 
   globalThis.fetch = client.fetch
 
   cached = { client, key }
   return client
+}
+
+export async function closeMppx() {
+  const current = cached
+  if (!current) return
+  cached = undefined
+  try {
+    await current.client.close()
+  } finally {
+    if (globalThis.fetch === current.client.fetch)
+      globalThis.fetch = unwrapFetch(current.client.fetch)
+  }
 }
 
 export async function getWalletStatus(config: PluginConfig): Promise<WalletStatus> {

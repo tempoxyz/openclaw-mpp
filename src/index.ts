@@ -3,7 +3,7 @@ import {
   definePluginEntry,
 } from 'openclaw/plugin-sdk/plugin-entry'
 import { Type } from 'typebox'
-import { createMppx, getWalletStatus, normalizeConfig, setupWallet } from './mpp.js'
+import { closeMppx, createMppx, getWalletStatus, normalizeConfig, setupWallet } from './mpp.js'
 
 const configSchema = buildJsonPluginConfigSchema({
   type: 'object',
@@ -78,10 +78,18 @@ export default definePluginEntry({
     const config = normalizeConfig(api.pluginConfig)
 
     if (api.registrationMode === 'full' && config.enabled !== false) {
-      void createMppx(config).then(
-        () => api.logger.info('MPP payment-aware fetch initialized.'),
-        (error) => api.logger.warn(formatError(error)),
-      )
+      api.registerService({
+        id: 'mpp',
+        async start() {
+          try {
+            await createMppx(config)
+            api.logger.info('MPP payment-aware fetch initialized.')
+          } catch (error) {
+            api.logger.warn(formatError(error))
+          }
+        },
+        stop: closeMppx,
+      })
     }
 
     api.registerTool({
