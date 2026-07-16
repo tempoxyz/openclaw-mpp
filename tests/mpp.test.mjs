@@ -3,9 +3,6 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
-import { privateKeyToAccount } from 'viem/accounts'
-
-import { createPaymentClient } from '../dist/payment-fetch.js'
 import {
   closeMppx,
   createMppx,
@@ -222,19 +219,17 @@ test('installs payment-aware fetch', async () => {
 
 test('preserves Request method and body', async () => {
   let received
-  const client = createPaymentClient(
-    { account: privateKeyToAccount(key) },
-    async (input, init) => {
-      const request = new Request(input, init)
-      received = {
-        body: await request.text(),
-        method: request.method,
-      }
-      return new Response('ok')
-    },
-  )
+  globalThis.fetch = async (input, init) => {
+    const request = new Request(input, init)
+    received = {
+      body: await request.text(),
+      method: request.method,
+    }
+    return new Response('ok')
+  }
+  await createMppx({ wallet: { privateKey: key, type: 'tempo' } })
 
-  const response = await client.fetch(
+  const response = await fetch(
     new Request('https://pay.example.com/free', {
       body: 'hello',
       method: 'POST',
@@ -243,7 +238,6 @@ test('preserves Request method and body', async () => {
 
   assert.equal(response.status, 200)
   assert.deepEqual(received, { body: 'hello', method: 'POST' })
-  await client.close()
 })
 
 test('passes through free SSE responses', async () => {
@@ -253,12 +247,10 @@ test('passes through free SSE responses', async () => {
       'x-upstream': 'preserved',
     },
   })
-  const client = createPaymentClient(
-    { account: privateKeyToAccount(key) },
-    async () => upstream,
-  )
+  globalThis.fetch = async () => upstream
+  await createMppx({ wallet: { privateKey: key, type: 'tempo' } })
 
-  const response = await client.fetch('https://stream.example.com/free', {
+  const response = await fetch('https://stream.example.com/free', {
     headers: { accept: 'text/event-stream' },
   })
 
@@ -266,7 +258,6 @@ test('passes through free SSE responses', async () => {
   assert.equal(response, upstream)
   assert.equal(response.headers.get('x-upstream'), 'preserved')
   assert.equal(await response.text(), 'event: update\nid: 7\nretry: 1000\ndata: hello\n\n')
-  await client.close()
 })
 
 function requestHeaders(input, init) {
