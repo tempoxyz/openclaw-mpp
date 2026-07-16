@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict'
 import { mkdtemp, writeFile } from 'node:fs/promises'
+import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
+import { Handler } from 'accounts/server'
+import { KeyAuthorization } from 'ox/tempo'
+import { Account } from 'viem/tempo'
+import { tempo } from 'viem/tempo/chains'
 import {
+  beginWalletSetup,
   closeMppx,
   createMppx,
   getWalletStatus,
@@ -11,6 +17,7 @@ import {
   selectAccessKey,
   setupWallet,
 } from '../dist/mpp.js'
+import { resolveSetupPolicy } from '../dist/setup.js'
 
 const originalTempoPrivateKey = process.env.TEMPO_PRIVATE_KEY
 const originalFetch = globalThis.fetch
@@ -19,6 +26,7 @@ const rootA = `0x${'a'.repeat(40)}`
 const rootB = `0x${'b'.repeat(40)}`
 const accessKeyA = `0x${'2'.repeat(40)}`
 const accessKeyB = `0x${'3'.repeat(40)}`
+const root = Account.fromSecp256k1(`0x${'9'.repeat(64)}`)
 
 afterEach(async () => {
   await closeMppx()
@@ -96,8 +104,50 @@ test('requires a payment source', async () => {
         storagePath: join(storageDir, 'wallet.json'),
       },
     }),
-    /Connect Tempo Wallet/,
+    /openclaw mpp setup/,
   )
+})
+
+test('authorizes and hydrates a scoped Tempo Wallet access key', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-setup-'))
+  const config = {
+    wallet: {
+      type: 'tempo',
+      storagePath: join(storageDir, 'wallet.json'),
+    },
+  }
+  const server = await createCodeAuthServer()
+  const policy = resolveSetupPolicy({}, Date.now())
+
+  try {
+    const pending = await beginWalletSetup(config, {
+      ...policy,
+      host: `${server.url}/cli-auth`,
+      pollIntervalMs: 10,
+      timeoutMs: 2_000,
+    })
+
+    assert.equal(pending.ready, false)
+    assert.equal(pending.setup, 'pending')
+    assert.match(pending.setupUrl, new RegExp(`^${server.url}/cli-auth\\?code=`))
+
+    const request = await approveDeviceCode(pending.setupUrl, server.url)
+    assert.equal(request.expiry, policy.expiry)
+    assert.deepEqual(request.limits, [
+      { limit: '0x989680', token: policy.limits[0].token },
+    ])
+    assert.deepEqual(request.showDeposit, policy.showDeposit)
+
+    const ready = await waitForWallet(config)
+    assert.equal(ready.ready, true)
+    assert.equal(ready.account, root.address)
+    assert.match(ready.accessKey, /^0x[0-9a-fA-F]{40}$/)
+
+    const hydrated = await getWalletStatus(config)
+    assert.equal(hydrated.accessKey, ready.accessKey)
+  } finally {
+    await server.close()
+  }
 })
 
 test('selects access keys for the active Tempo account', () => {
@@ -279,4 +329,78 @@ async function writeWalletStore(path, state) {
       },
     }),
   )
+}
+
+async function approveDeviceCode(setupUrl, serverUrl) {
+  const code = new URL(setupUrl).searchParams.get('code')
+  const response = await originalFetch(`${serverUrl}/cli-auth/pending/${code}`)
+  assert.equal(response.status, 200)
+  const pending = await response.json()
+  const limits = pending.limits?.map(({ limit, token }) => ({ limit: BigInt(limit), token }))
+  const signed = await root.signKeyAuthorization(
+    {
+      accessKeyAddress: pending.accessKeyAddress,
+      keyType: pending.keyType,
+    },
+    {
+      chainId: BigInt(pending.chainId),
+      expiry: pending.expiry,
+      ...(limits ? { limits } : {}),
+    },
+  )
+  const keyAuthorization = KeyAuthorization.toRpc(signed)
+  const authorized = await originalFetch(`${serverUrl}/cli-auth`, {
+    body: JSON.stringify({
+      accountAddress: root.address,
+      code,
+      keyAuthorization: {
+        ...keyAuthorization,
+        address: keyAuthorization.keyId,
+      },
+    }),
+    headers: { 'content-type': 'application/json' },
+    method: 'POST',
+  })
+  assert.equal(authorized.status, 200, await authorized.text())
+  return pending
+}
+
+async function createCodeAuthServer() {
+  const handler = Handler.codeAuth({
+    chains: [tempo],
+    path: '/cli-auth',
+    policy: {
+      validate({ expiry, limits }) {
+        return {
+          expiry,
+          ...(limits ? { limits } : {}),
+        }
+      },
+    },
+    rateLimit: false,
+  })
+  const server = createServer(handler.listener)
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Unable to start auth server.')
+
+  return {
+    close: () =>
+      new Promise((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      ),
+    url: `http://127.0.0.1:${address.port}`,
+  }
+}
+
+async function waitForWallet(config) {
+  const timeout = Date.now() + 5_000
+  let status
+  while (Date.now() < timeout) {
+    status = await getWalletStatus(config)
+    if (status.ready) return status
+    if (status.setup === 'failed') throw new Error(status.message)
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error(`Timed out waiting for wallet setup: ${JSON.stringify(status)}`)
 }

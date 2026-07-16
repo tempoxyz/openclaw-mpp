@@ -27,6 +27,9 @@ importers:
       openclaw:
         specifier: 2026.6.11
         version: 2026.6.11(@cfworker/json-schema@4.1.1)
+      ox:
+        specifier: ~0.14.30
+        version: 0.14.30(typescript@6.0.3)(zod@4.4.3)
       oxlint:
         specifier: ^1.72.0
         version: 1.72.0
