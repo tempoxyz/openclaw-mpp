@@ -1,4 +1,4 @@
-import { parseUnits } from 'viem'
+import { parseUnits, toHex } from 'viem'
 import { tempo } from 'viem/tempo/chains'
 import { usdce } from 'viem/tokens'
 
@@ -10,7 +10,7 @@ export type SetupInput = {
 
 export type SetupPolicy = {
   expiry: number
-  limits: readonly [{ limit: bigint; token: `0x${string}` }]
+  limits: readonly [{ limit: `0x${string}`; token: `0x${string}` }]
   showDeposit: false | {
     amount: string
     displayName: string
@@ -26,7 +26,7 @@ export function resolveSetupPolicy(input: SetupInput = {}, now = Date.now()): Se
   const amount = parseLimit(input.limit ?? defaultLimit)
   return {
     expiry: Math.floor(now / 1_000) + parseDuration(input.expires ?? defaultExpiry),
-    limits: [{ limit: parseUnits(amount, usdce.decimals), token: tempoUsdc }],
+    limits: [{ limit: toHex(parseUnits(amount, usdce.decimals)), token: tempoUsdc }],
     showDeposit:
       input.showDeposit === false
         ? false

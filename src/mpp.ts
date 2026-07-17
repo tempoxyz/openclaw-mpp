@@ -1,4 +1,5 @@
 import { Provider as TempoProvider, Storage as TempoStorage } from 'accounts/cli'
+import type { Store as TempoStore } from 'accounts'
 import { Mppx, tempo } from 'mppx/client'
 import { privateKeyToAccount } from 'viem/accounts'
 import { tempo as tempoChain } from 'viem/tempo/chains'
@@ -41,70 +42,33 @@ export type WalletStatus = {
 
 type MppxClient = ReturnType<typeof Mppx.create>
 type TempoParameters = NonNullable<Parameters<typeof tempo>[0]>
-type StoredAccessKey = {
-  access?: string
-  address?: string
-  chainId?: number
-}
-type StoredAccount = {
-  address: string
-}
-type TempoStore = {
-  getState: () => {
-    accessKeys: readonly StoredAccessKey[]
-    accounts: readonly StoredAccount[]
-    activeAccount: number
-    chainId: number
+type TempoProviderInstance = Pick<
+  TempoProvider.create.ReturnType,
+  'getAccount' | 'getMppxParameters' | 'request'
+> & { store: TempoStoreInstance }
+type TempoStoreInstance = {
+  getState: () => TempoStore.State
+  persist: {
+    hasHydrated: () => boolean
+    rehydrate: () => Promise<void>
   }
-  persist?: {
-    hasHydrated?: () => boolean
-    rehydrate?: () => Promise<void> | void
-  }
-  setState: (state: { chainId: number }) => void
+  setState: (state: Partial<TempoStore.State>) => void
 }
-type TempoProviderInstance = {
-  getAccount: () => TempoParameters['account']
-  getMppxParameters: (options: { accessKey?: `0x${string}` }) => Partial<TempoParameters>
-  request: (request: {
-    method: 'wallet_authorizeAccessKey'
-    params: [
-      {
-        expiry: number
-        limits?: readonly { limit: bigint; token: `0x${string}` }[] | undefined
-        showDeposit?:
-          | boolean
-          | { amount?: string; displayName?: string; token?: string }
-          | undefined
-      },
-    ]
-  }) => Promise<{
-    keyAuthorization: { address?: string | undefined; keyId?: string | undefined }
-    rootAddress: string
-  }>
-  store: TempoStore
-}
-
-type TempoProviderOptions = {
-  host?: string
-  open?: (url: string) => Promise<void> | void
-  pollIntervalMs?: number
-  timeoutMs?: number
-}
+type TempoProviderOptions = Pick<
+  TempoProvider.create.Options,
+  'host' | 'open' | 'pollIntervalMs' | 'timeoutMs'
+>
+type StoredAccessKey = TempoStore.State['accessKeys'][number]
 
 export type WalletSetupOptions = TempoProviderOptions & {
   expiry?: number
-  limits?: readonly { limit: bigint; token: `0x${string}` }[]
+  limits?: readonly { limit: `0x${string}`; token: `0x${string}` }[]
   showDeposit?: boolean | { amount?: string; displayName?: string; token?: string }
 }
 
 const defaultAccessKeyTtlSeconds = 7 * 24 * 60 * 60
 
-let cached:
-  | {
-      client: MppxClient
-      key: string
-    }
-  | undefined
+let cached: { client: MppxClient; key: string } | undefined
 
 let pendingSetup:
   | {
@@ -295,27 +259,22 @@ async function createTempoProvider(
 ) {
   const provider = TempoProvider.create({
     chains: [tempoChain],
-    ...(options.host ? { host: options.host } : {}),
+    host: options.host,
     mpp: false,
-    ...(options.open ? { open: options.open } : {}),
-    ...(options.pollIntervalMs !== undefined ? { pollIntervalMs: options.pollIntervalMs } : {}),
+    open: options.open,
+    pollIntervalMs: options.pollIntervalMs,
     storage: wallet.storagePath
       ? TempoStorage.filesystem({ path: wallet.storagePath })
       : TempoStorage.filesystem(),
-    ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
+    timeoutMs: options.timeoutMs,
   }) as TempoProviderInstance
-  await hydrateStore(provider.store)
+  if (!provider.store.persist.hasHydrated()) await provider.store.persist.rehydrate()
   provider.store.setState({ chainId: tempoChain.id })
   return provider
 }
 
-async function hydrateStore(store: TempoStore) {
-  if (!store.persist?.rehydrate || store.persist.hasHydrated?.()) return
-  await store.persist.rehydrate()
-}
-
 export function selectAccessKey(
-  state: ReturnType<TempoStore['getState']>,
+  state: TempoStore.State,
   requestedAccessKey: `0x${string}` | undefined,
 ) {
   const account = state.accounts[state.activeAccount]?.address
@@ -372,7 +331,7 @@ function getTempoWalletStatus(
 }
 
 function findAccessKey(
-  state: ReturnType<TempoStore['getState']>,
+  state: TempoStore.State,
   account: string,
   requestedAccessKey: `0x${string}` | undefined,
 ) {
@@ -380,7 +339,7 @@ function findAccessKey(
     if (!isMatchingAccessKey(key, account)) return false
     if (requestedAccessKey) return sameAddress(key.address!, requestedAccessKey)
     return true
-  }) as StoredAccessKey | undefined
+  })
 }
 
 function isMatchingAccessKey(key: StoredAccessKey, account: string) {
@@ -390,10 +349,13 @@ function isMatchingAccessKey(key: StoredAccessKey, account: string) {
   return true
 }
 
-function readPrivateKey(value: unknown): `0x${string}` | undefined {
+function readPrivateKey(
+  value: unknown,
+  name = 'wallet.privateKey',
+): `0x${string}` | undefined {
   if (value === undefined) return undefined
   if (typeof value !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(value))
-    throw new Error('wallet.privateKey must be a 32-byte hex private key.')
+    throw new Error(`${name} must be a 32-byte hex private key.`)
   return value as `0x${string}`
 }
 
@@ -421,10 +383,7 @@ function readWalletConfig(value: unknown): WalletConfig {
 }
 
 function readEnvWalletConfig(): Partial<TempoWalletConfig> {
-  const value = process.env.TEMPO_PRIVATE_KEY
-  if (value !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(value))
-    throw new Error('TEMPO_PRIVATE_KEY must be a 32-byte hex private key.')
-  const privateKey = value as `0x${string}` | undefined
+  const privateKey = readPrivateKey(process.env.TEMPO_PRIVATE_KEY, 'TEMPO_PRIVATE_KEY')
   return privateKey ? { privateKey } : {}
 }
 

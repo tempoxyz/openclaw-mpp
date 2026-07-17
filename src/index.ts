@@ -2,7 +2,7 @@ import {
   buildJsonPluginConfigSchema,
   definePluginEntry,
 } from 'openclaw/plugin-sdk/plugin-entry'
-import { Type } from 'typebox'
+import { Type, type Static } from 'typebox'
 import { registerCli } from './cli.js'
 import {
   beginWalletSetup,
@@ -75,17 +75,8 @@ const walletSetupSchema = Type.Object(
 )
 const emptySchema = Type.Object({}, { additionalProperties: false })
 
-type FetchInput = {
-  body?: string
-  headers?: Record<string, string>
-  method?: string
-  url: string
-}
-type WalletSetupInput = {
-  expires?: string
-  limit?: string
-  showDeposit?: boolean
-}
+type FetchInput = Static<typeof requestInitSchema>
+type WalletSetupInput = Static<typeof walletSetupSchema>
 
 export default definePluginEntry({
   id: 'mpp',
