@@ -15,6 +15,7 @@ openclaw gateway run
 `openclaw mpp setup` uses the Tempo Accounts SDK to print a
 [Tempo Wallet](https://wallet.tempo.xyz) approval link. Your main wallet authorizes a
 seven-day access key with a 10 USDC spending limit; its private key is never shared with OpenClaw.
+Tempo Wallet setup currently targets Tempo mainnet.
 Customize the policy with `--expires`, `--limit`, or `--no-deposit`:
 
 ```bash
