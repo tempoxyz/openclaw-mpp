@@ -39,9 +39,6 @@ export type WalletStatus = {
 
 type MppxClient = ReturnType<typeof Mppx.create>
 type TempoParameters = NonNullable<Parameters<typeof tempo>[0]>
-type PaymentFetch = typeof globalThis.fetch & {
-  [originalFetch]?: typeof globalThis.fetch
-}
 type StoredAccessKey = {
   access?: string
   address?: string
@@ -76,7 +73,6 @@ type TempoProviderInstance = {
   store: TempoStore
 }
 
-const originalFetch = Symbol('mpp.openclaw.originalFetch')
 const defaultAccessKeyTtlSeconds = 24 * 60 * 60
 
 let cached:
@@ -99,19 +95,20 @@ export async function createMppx(config: PluginConfig) {
   const key = JSON.stringify(source.cacheKey)
 
   if (cached?.key === key) return cached.client
+  if (cached) closeMppx()
 
-  const fetch = unwrapFetch(globalThis.fetch)
   const client = Mppx.create({
-    fetch,
-    methods: [tempo({ ...source.parameters, mode: 'push' })],
-    polyfill: false,
+    methods: [tempo(source.parameters)],
   })
-  ;(client.fetch as PaymentFetch)[originalFetch] = fetch
-
-  globalThis.fetch = client.fetch
 
   cached = { client, key }
   return client
+}
+
+export function closeMppx() {
+  if (!cached) return
+  cached = undefined
+  Mppx.restore()
 }
 
 export async function getWalletStatus(config: PluginConfig): Promise<WalletStatus> {
@@ -322,8 +319,4 @@ function readAddress(value: unknown): `0x${string}` | undefined {
 
 function sameAddress(a: string, b: string) {
   return a.toLowerCase() === b.toLowerCase()
-}
-
-function unwrapFetch(fetch: typeof globalThis.fetch) {
-  return (fetch as PaymentFetch)[originalFetch] ?? fetch
 }
