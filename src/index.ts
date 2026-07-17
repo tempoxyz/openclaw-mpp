@@ -33,10 +33,12 @@ const configSchema = buildJsonPluginConfigSchema({
         },
         accessKey: {
           type: 'string',
+          pattern: '^0x[0-9a-fA-F]{40}$',
           description: 'Specific Tempo Wallet access key address to use.',
         },
         privateKey: {
           type: 'string',
+          pattern: '^0x[0-9a-fA-F]{64}$',
           description: 'Tempo private key. Prefer TEMPO_PRIVATE_KEY for local use.',
         },
         storagePath: {
@@ -92,14 +94,13 @@ export default definePluginEntry({
   configSchema,
   register(api) {
     registerCli(api)
-    const config = normalizeConfig(api.pluginConfig)
 
-    if (api.registrationMode === 'full' && config.enabled !== false) {
+    if (api.registrationMode === 'full' && api.pluginConfig?.enabled !== false) {
       api.registerService({
         id: 'mpp',
         async start() {
           try {
-            await createMppx(config)
+            await createMppx(normalizeConfig(api.pluginConfig))
             api.logger.info('MPP payment-aware fetch initialized.')
           } catch (error) {
             api.logger.warn(`MPP is installed but has no payment account. ${formatError(error)}`)
@@ -122,12 +123,10 @@ export default definePluginEntry({
           body: input.body,
           headers: input.headers,
           method: input.method,
+          signal,
         })
 
-        const contentType = response.headers.get('content-type') ?? ''
-        const text = contentType.includes('application/json')
-          ? JSON.stringify(await response.json())
-          : await response.text()
+        const text = await response.text()
         const headers = Object.fromEntries(response.headers.entries())
 
         return {
@@ -145,7 +144,7 @@ export default definePluginEntry({
     api.registerTool({
       name: 'mpp_wallet_status',
       label: 'MPP wallet status',
-      description: 'Show whether the configured MPP wallet can pay challenges.',
+      description: 'Show the configured MPP payment account and access key.',
       parameters: emptySchema,
       async execute(_toolCallId, _params, signal) {
         signal?.throwIfAborted()
@@ -157,7 +156,7 @@ export default definePluginEntry({
     api.registerTool({
       name: 'mpp_wallet_setup',
       label: 'MPP wallet setup',
-      description: 'Create a Tempo Wallet access key for MPP payments.',
+      description: 'Connect Tempo Wallet and authorize an access key for MPP payments.',
       parameters: walletSetupSchema,
       async execute(_toolCallId, params, signal) {
         signal?.throwIfAborted()

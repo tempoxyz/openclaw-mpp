@@ -63,13 +63,15 @@ test('plugin config can disable initialization', () => {
   )
 })
 
-test('ignores malformed private keys', () => {
+test('rejects malformed private keys', () => {
   process.env.TEMPO_PRIVATE_KEY = '0x123'
 
-  assert.deepEqual(normalizeConfig(undefined), {
-    enabled: true,
-    wallet: { type: 'tempo' },
-  })
+  assert.throws(() => normalizeConfig(undefined), /TEMPO_PRIVATE_KEY/)
+  delete process.env.TEMPO_PRIVATE_KEY
+  assert.throws(
+    () => normalizeConfig({ wallet: { privateKey: '0x123', type: 'tempo' } }),
+    /wallet.privateKey/,
+  )
 })
 
 test('normalizes wallet configuration', () => {
@@ -91,6 +93,40 @@ test('normalizes wallet configuration', () => {
         storagePath: '/tmp/tempo-wallet.json',
       },
     },
+  )
+})
+
+test('explicit Tempo Wallet configuration does not use the environment private key', () => {
+  process.env.TEMPO_PRIVATE_KEY = key
+
+  assert.deepEqual(
+    normalizeConfig({
+      wallet: {
+        accessKey: accessKeyA,
+        type: 'tempo',
+      },
+    }),
+    {
+      enabled: true,
+      wallet: {
+        accessKey: accessKeyA,
+        type: 'tempo',
+      },
+    },
+  )
+})
+
+test('rejects ambiguous wallet configuration', () => {
+  assert.throws(
+    () =>
+      normalizeConfig({
+        wallet: {
+          accessKey: accessKeyA,
+          privateKey: key,
+          type: 'tempo',
+        },
+      }),
+    /either wallet.accessKey or wallet.privateKey/,
   )
 })
 

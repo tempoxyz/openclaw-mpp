@@ -391,23 +391,26 @@ function isMatchingAccessKey(key: StoredAccessKey, account: string) {
 }
 
 function readPrivateKey(value: unknown): `0x${string}` | undefined {
-  if (typeof value !== 'string') return undefined
-  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) return undefined
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(value))
+    throw new Error('wallet.privateKey must be a 32-byte hex private key.')
   return value as `0x${string}`
 }
 
 function readWalletConfig(value: unknown): WalletConfig {
-  const env = readEnvWalletConfig()
+  if (value === undefined) return { type: 'tempo', ...readEnvWalletConfig() }
   if (!value || typeof value !== 'object' || Array.isArray(value))
-    return { type: 'tempo', ...env }
+    throw new Error('wallet must be an object.')
 
   const input = value as Record<string, unknown>
   const type = input.type === undefined || input.type === 'tempo' ? 'tempo' : undefined
   if (!type) throw new Error(`Unsupported wallet type "${String(input.type)}".`)
 
   const accessKey = readAddress(input.accessKey)
-  const privateKey = readPrivateKey(input.privateKey) ?? env.privateKey
+  const privateKey = readPrivateKey(input.privateKey)
   const storagePath = typeof input.storagePath === 'string' ? input.storagePath : undefined
+  if (accessKey && privateKey)
+    throw new Error('Configure either wallet.accessKey or wallet.privateKey, not both.')
 
   return {
     type,
@@ -418,13 +421,17 @@ function readWalletConfig(value: unknown): WalletConfig {
 }
 
 function readEnvWalletConfig(): Partial<TempoWalletConfig> {
-  const privateKey = readPrivateKey(process.env.TEMPO_PRIVATE_KEY)
+  const value = process.env.TEMPO_PRIVATE_KEY
+  if (value !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(value))
+    throw new Error('TEMPO_PRIVATE_KEY must be a 32-byte hex private key.')
+  const privateKey = value as `0x${string}` | undefined
   return privateKey ? { privateKey } : {}
 }
 
 function readAddress(value: unknown): `0x${string}` | undefined {
-  if (typeof value !== 'string') return undefined
-  if (!/^0x[0-9a-fA-F]{40}$/.test(value)) return undefined
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(value))
+    throw new Error('wallet.accessKey must be a 20-byte hex address.')
   return value as `0x${string}`
 }
 
