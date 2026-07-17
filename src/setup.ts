@@ -1,16 +1,18 @@
 import { parseUnits, toHex } from 'viem'
-import { tempo } from 'viem/tempo/chains'
 import { usdce } from 'viem/tokens'
+import { tempoNetworks, type TempoNetwork } from './network.js'
 
 export type SetupInput = {
   expires?: string
   limit?: string
+  network?: TempoNetwork
   showDeposit?: boolean
 }
 
 export type SetupPolicy = {
   expiry: number
   limits: readonly [{ limit: `0x${string}`; token: `0x${string}` }]
+  network: TempoNetwork
   showDeposit: false | {
     amount: string
     displayName: string
@@ -20,13 +22,19 @@ export type SetupPolicy = {
 
 const defaultExpiry = '7d'
 const defaultLimit = 'USDC=10'
-const tempoUsdc = usdce.addresses[tempo.id]
 
 export function resolveSetupPolicy(input: SetupInput = {}, now = Date.now()): SetupPolicy {
   const amount = parseLimit(input.limit ?? defaultLimit)
+  const network = input.network ?? 'mainnet'
   return {
     expiry: Math.floor(now / 1_000) + parseDuration(input.expires ?? defaultExpiry),
-    limits: [{ limit: toHex(parseUnits(amount, usdce.decimals)), token: tempoUsdc }],
+    limits: [
+      {
+        limit: toHex(parseUnits(amount, usdce.decimals)),
+        token: usdce.addresses[tempoNetworks[network].id],
+      },
+    ],
+    network,
     showDeposit:
       input.showDeposit === false
         ? false

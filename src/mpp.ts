@@ -2,7 +2,11 @@ import { Provider as TempoProvider, Storage as TempoStorage } from 'accounts/cli
 import type { Store as TempoStore } from 'accounts'
 import { Mppx, tempo } from 'mppx/client'
 import { privateKeyToAccount } from 'viem/accounts'
-import { tempo as tempoChain } from 'viem/tempo/chains'
+import {
+  tempoChains,
+  tempoNetworks,
+  type TempoNetwork,
+} from './network.js'
 
 export type PluginConfig = {
   enabled?: boolean
@@ -72,6 +76,7 @@ type TempoProviderOptions = Pick<
 export type WalletSetupOptions = TempoProviderOptions & {
   expiry?: number
   limits?: readonly { limit: `0x${string}`; token: `0x${string}` }[]
+  network?: TempoNetwork
   showDeposit?: boolean | { amount?: string; displayName?: string; token?: string }
 }
 
@@ -118,12 +123,16 @@ export function closeMppx() {
   Mppx.restore()
 }
 
-export async function getWalletStatus(config: PluginConfig): Promise<WalletStatus> {
+export async function getWalletStatus(
+  config: PluginConfig,
+  network?: TempoNetwork,
+): Promise<WalletStatus> {
   const wallet = config.wallet
   if (wallet.privateKey) {
     const account = privateKeyToAccount(wallet.privateKey)
     return {
       account: account.address,
+      ...(network ? { chainId: tempoNetworks[network].id } : {}),
       message: 'Tempo private key configured.',
       ready: true,
       source: 'privateKey',
@@ -149,7 +158,7 @@ export async function getWalletStatus(config: PluginConfig): Promise<WalletStatu
   }
 
   const provider = await createTempoProvider(wallet)
-  return getTempoWalletStatus(provider, wallet)
+  return getTempoWalletStatus(provider, wallet, network)
 }
 
 export async function setupWallet(
@@ -157,10 +166,11 @@ export async function setupWallet(
   options: WalletSetupOptions = {},
 ): Promise<WalletStatus> {
   const wallet = config.wallet
-  if (wallet.privateKey) return getWalletStatus(config)
+  if (wallet.privateKey) return getWalletStatus(config, options.network)
 
-  const provider = await createTempoProvider(wallet, options)
-  const status = await getTempoWalletStatus(provider, wallet)
+  const network = options.network ?? 'mainnet'
+  const provider = await createTempoProvider(wallet, options, tempoNetworks[network].id)
+  const status = await getTempoWalletStatus(provider, wallet, network)
   if (wallet.accessKey) {
     if (status.ready) return status
     throw new Error(
@@ -178,14 +188,15 @@ export async function setupWallet(
     params: [parameters],
   })
 
-  return getTempoWalletStatus(provider, wallet)
+  return getTempoWalletStatus(provider, wallet, network)
 }
 
 export async function beginWalletSetup(
   config: PluginConfig,
   options: WalletSetupOptions = {},
 ): Promise<WalletStatus> {
-  const status = await getWalletStatus(config)
+  const network = options.network ?? 'mainnet'
+  const status = await getWalletStatus(config, network)
   if (status.ready) return status
 
   const key = walletKey(config.wallet)
@@ -252,7 +263,6 @@ async function resolveWalletSource(config: PluginConfig): Promise<WalletSource> 
   return {
     cacheKey: {
       accessKey: wallet.accessKey,
-      chainId: tempoChain.id,
       source: 'tempo',
       storagePath: wallet.storagePath ?? 'default',
     },
@@ -266,9 +276,10 @@ async function resolveWalletSource(config: PluginConfig): Promise<WalletSource> 
 async function createTempoProvider(
   wallet: TempoWalletConfig,
   options: TempoProviderOptions = {},
+  chainId?: number,
 ) {
   const provider = TempoProvider.create({
-    chains: [tempoChain],
+    chains: tempoChains,
     host: options.host,
     mpp: false,
     open: options.open,
@@ -279,19 +290,21 @@ async function createTempoProvider(
     timeoutMs: options.timeoutMs,
   }) as TempoProviderInstance
   if (!provider.store.persist.hasHydrated()) await provider.store.persist.rehydrate()
-  provider.store.setState({ chainId: tempoChain.id })
+  if (chainId !== undefined) provider.store.setState({ chainId })
   return provider
 }
 
 async function getTempoWalletStatus(
   provider: TempoProviderInstance,
   wallet: TempoWalletConfig,
+  network?: TempoNetwork,
 ): Promise<WalletStatus> {
   const state = provider.store.getState()
+  const chainId = network ? tempoNetworks[network].id : state.chainId
   const account = state.accounts[state.activeAccount]?.address as `0x${string}` | undefined
   if (!account)
     return {
-      chainId: state.chainId,
+      chainId,
       message: 'Run `openclaw mpp setup` or provide `TEMPO_PRIVATE_KEY`.',
       ready: false,
       ...(wallet.accessKey ? { requestedAccessKey: wallet.accessKey } : {}),
@@ -299,7 +312,8 @@ async function getTempoWalletStatus(
       wallet: 'tempo',
     }
 
-  const accessKeys = await availableAccessKeys(provider, account)
+  const chains = network ? [tempoNetworks[network]] : tempoChains
+  const accessKeys = await availableAccessKeys(provider, account, chains.map((chain) => chain.id))
   const accessKey = accessKeys.find(
     (key) => !wallet.accessKey || sameAddress(key.address, wallet.accessKey),
   )?.address
@@ -308,7 +322,7 @@ async function getTempoWalletStatus(
     account,
     activeAccessKeys: accessKeys.length,
     ...(accessKey ? { accessKey } : {}),
-    chainId: state.chainId,
+    chainId,
     message: accessKey
       ? 'Tempo Wallet access key ready.'
       : wallet.accessKey
@@ -324,14 +338,17 @@ async function getTempoWalletStatus(
 async function availableAccessKeys(
   provider: TempoProviderInstance,
   account: `0x${string}`,
+  chainIds: readonly number[],
 ) {
-  const keys = provider.store.accessKeys.list({ account, chainId: tempoChain.id })
+  const keys = chainIds.flatMap((chainId) =>
+    provider.store.accessKeys.list({ account, chainId }),
+  )
   const accounts = await Promise.all(
     keys.map((key) =>
       provider.store.accessKeys.get({
         accessKey: key.address,
         account,
-        chainId: tempoChain.id,
+        chainId: key.chainId,
       }),
     ),
   )

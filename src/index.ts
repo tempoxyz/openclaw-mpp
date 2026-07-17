@@ -11,6 +11,7 @@ import {
   getWalletStatus,
   normalizeConfig,
 } from './mpp.js'
+import { parseTempoNetwork } from './network.js'
 import { resolveSetupPolicy } from './setup.js'
 
 const configSchema = buildJsonPluginConfigSchema({
@@ -67,13 +68,23 @@ const walletSetupSchema = Type.Object(
     limit: Type.Optional(
       Type.String({ description: 'USDC spending limit, such as USDC=25.' }),
     ),
+    network: Type.Optional(
+      Type.Union([Type.Literal('mainnet'), Type.Literal('testnet')], {
+        description: 'Tempo network for the access key.',
+      }),
+    ),
     showDeposit: Type.Optional(
       Type.Boolean({ description: 'Show the Tempo Wallet deposit flow during setup.' }),
     ),
   },
   { additionalProperties: false },
 )
-const emptySchema = Type.Object({}, { additionalProperties: false })
+const walletStatusSchema = Type.Object(
+  {
+    network: Type.Optional(Type.Union([Type.Literal('mainnet'), Type.Literal('testnet')])),
+  },
+  { additionalProperties: false },
+)
 
 type FetchInput = Static<typeof requestInitSchema>
 type WalletSetupInput = Static<typeof walletSetupSchema>
@@ -136,10 +147,13 @@ export default definePluginEntry({
       name: 'mpp_wallet_status',
       label: 'MPP wallet status',
       description: 'Show the configured MPP payment account and access key.',
-      parameters: emptySchema,
-      async execute(_toolCallId, _params, signal) {
+      parameters: walletStatusSchema,
+      async execute(_toolCallId, params, signal) {
         signal?.throwIfAborted()
-        const status = await getWalletStatus(normalizeConfig(api.pluginConfig))
+        const status = await getWalletStatus(
+          normalizeConfig(api.pluginConfig),
+          readNetwork(params),
+        )
         return jsonToolResult(status)
       },
     })
@@ -195,8 +209,14 @@ function readWalletSetupInput(params: unknown): WalletSetupInput {
   return {
     expires: typeof value.expires === 'string' ? value.expires : undefined,
     limit: typeof value.limit === 'string' ? value.limit : undefined,
+    network: readNetwork(value),
     showDeposit: typeof value.showDeposit === 'boolean' ? value.showDeposit : undefined,
   }
+}
+
+function readNetwork(value: unknown) {
+  if (!value || typeof value !== 'object') return undefined
+  return parseTempoNetwork((value as Record<string, unknown>).network)
 }
 
 function jsonToolResult(details: unknown) {
