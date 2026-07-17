@@ -3,3 +3,6 @@ allowBuilds:
   openclaw: true
   protobufjs: true
   tree-sitter-bash: true
+
+overrides:
+  tar@<=7.5.15: '7.5.16'
