@@ -33,6 +33,8 @@ export type WalletStatus = {
   message: string
   ready: boolean
   requestedAccessKey?: `0x${string}`
+  setup?: 'failed' | 'pending'
+  setupUrl?: string
   source: 'privateKey' | 'wallet'
   wallet: 'tempo'
 }
@@ -65,7 +67,16 @@ type TempoProviderInstance = {
   getMppxParameters: (options: { accessKey?: `0x${string}` }) => Partial<TempoParameters>
   request: (request: {
     method: 'wallet_authorizeAccessKey'
-    params: [{ expiry: number; showDeposit?: boolean | undefined }]
+    params: [
+      {
+        expiry: number
+        limits?: readonly { limit: bigint; token: `0x${string}` }[] | undefined
+        showDeposit?:
+          | boolean
+          | { amount?: string; displayName?: string; token?: string }
+          | undefined
+      },
+    ]
   }) => Promise<{
     keyAuthorization: { address?: string | undefined; keyId?: string | undefined }
     rootAddress: string
@@ -73,12 +84,35 @@ type TempoProviderInstance = {
   store: TempoStore
 }
 
-const defaultAccessKeyTtlSeconds = 24 * 60 * 60
+type TempoProviderOptions = {
+  host?: string
+  open?: (url: string) => Promise<void> | void
+  pollIntervalMs?: number
+  timeoutMs?: number
+}
+
+export type WalletSetupOptions = TempoProviderOptions & {
+  expiry?: number
+  limits?: readonly { limit: bigint; token: `0x${string}` }[]
+  showDeposit?: boolean | { amount?: string; displayName?: string; token?: string }
+}
+
+const defaultAccessKeyTtlSeconds = 7 * 24 * 60 * 60
 
 let cached:
   | {
       client: MppxClient
       key: string
+    }
+  | undefined
+
+let pendingSetup:
+  | {
+      error?: string
+      key: string
+      opened: Promise<string>
+      setupUrl?: string
+      status: WalletStatus
     }
   | undefined
 
@@ -124,18 +158,35 @@ export async function getWalletStatus(config: PluginConfig): Promise<WalletStatu
     }
   }
 
+  const pending = pendingSetup?.key === walletKey(wallet) ? pendingSetup : undefined
+  if (pending?.error)
+    return {
+      ...pending.status,
+      message: pending.error,
+      setup: 'failed',
+    }
+  if (pending)
+    return {
+      ...pending.status,
+      message: pending.setupUrl
+        ? 'Approve the access key in Tempo Wallet.'
+        : 'Creating a Tempo Wallet authorization request.',
+      setup: 'pending',
+      ...(pending.setupUrl ? { setupUrl: pending.setupUrl } : {}),
+    }
+
   const provider = await createTempoProvider(wallet)
   return getTempoWalletStatus(provider, wallet)
 }
 
 export async function setupWallet(
   config: PluginConfig,
-  options: { showDeposit?: boolean | undefined } = {},
+  options: WalletSetupOptions = {},
 ): Promise<WalletStatus> {
   const wallet = config.wallet
   if (wallet.privateKey) return getWalletStatus(config)
 
-  const provider = await createTempoProvider(wallet)
+  const provider = await createTempoProvider(wallet, options)
   const status = getTempoWalletStatus(provider, wallet)
   if (wallet.accessKey) {
     if (status.ready) return status
@@ -145,8 +196,9 @@ export async function setupWallet(
   }
 
   const parameters = {
-    expiry: Math.floor(Date.now() / 1000) + defaultAccessKeyTtlSeconds,
-    ...(typeof options.showDeposit === 'boolean' ? { showDeposit: options.showDeposit } : {}),
+    expiry: options.expiry ?? Math.floor(Date.now() / 1000) + defaultAccessKeyTtlSeconds,
+    ...(options.limits ? { limits: options.limits } : {}),
+    ...(options.showDeposit !== undefined ? { showDeposit: options.showDeposit } : {}),
   }
   await provider.request({
     method: 'wallet_authorizeAccessKey',
@@ -154,6 +206,58 @@ export async function setupWallet(
   })
 
   return getTempoWalletStatus(provider, wallet)
+}
+
+export async function beginWalletSetup(
+  config: PluginConfig,
+  options: WalletSetupOptions = {},
+): Promise<WalletStatus> {
+  const status = await getWalletStatus(config)
+  if (status.ready) return status
+
+  const key = walletKey(config.wallet)
+  if (pendingSetup?.error) pendingSetup = undefined
+  if (pendingSetup && pendingSetup.key !== key)
+    throw new Error('Tempo Wallet setup is already in progress.')
+  if (pendingSetup) {
+    const setupUrl = pendingSetup.setupUrl ?? (await pendingSetup.opened)
+    return { ...status, message: 'Approve the access key in Tempo Wallet.', setup: 'pending', setupUrl }
+  }
+
+  let resolveOpened!: (url: string) => void
+  const opened = new Promise<string>((resolve) => (resolveOpened = resolve))
+  pendingSetup = { key, opened, status }
+
+  const completion = setupWallet(config, {
+    ...options,
+    open(url) {
+      if (pendingSetup?.key === key) pendingSetup.setupUrl = url
+      resolveOpened(url)
+    },
+  })
+  void completion
+    .then(async (result) => {
+      if (config.enabled !== false && result.ready) await createMppx(config)
+      if (pendingSetup?.key === key) pendingSetup = undefined
+    })
+    .catch((error) => {
+      if (pendingSetup?.key === key) pendingSetup.error = formatError(error)
+    })
+
+  const setupUrl = await Promise.race([
+    opened,
+    completion.then(
+      () => '',
+      (error) => Promise.reject(error),
+    ),
+  ])
+  if (!setupUrl) return getWalletStatus(config)
+  return {
+    ...status,
+    message: 'Approve the access key in Tempo Wallet.',
+    setup: 'pending',
+    setupUrl,
+  }
 }
 
 async function resolveWalletSource(config: PluginConfig): Promise<WalletSource> {
@@ -185,13 +289,20 @@ async function resolveWalletSource(config: PluginConfig): Promise<WalletSource> 
   }
 }
 
-async function createTempoProvider(wallet: TempoWalletConfig) {
+async function createTempoProvider(
+  wallet: TempoWalletConfig,
+  options: TempoProviderOptions = {},
+) {
   const provider = TempoProvider.create({
     chains: [tempoChain],
+    ...(options.host ? { host: options.host } : {}),
     mpp: false,
+    ...(options.open ? { open: options.open } : {}),
+    ...(options.pollIntervalMs !== undefined ? { pollIntervalMs: options.pollIntervalMs } : {}),
     storage: wallet.storagePath
       ? TempoStorage.filesystem({ path: wallet.storagePath })
       : TempoStorage.filesystem(),
+    ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
   }) as TempoProviderInstance
   await hydrateStore(provider.store)
   provider.store.setState({ chainId: tempoChain.id })
@@ -209,7 +320,7 @@ export function selectAccessKey(
 ) {
   const account = state.accounts[state.activeAccount]?.address
   if (!account)
-    throw new Error('Connect Tempo Wallet or configure a Tempo private key before enabling MPP.')
+    throw new Error('Run `openclaw mpp setup` or provide `TEMPO_PRIVATE_KEY`.')
 
   const accessKey = findAccessKey(state, account, requestedAccessKey)
 
@@ -231,7 +342,7 @@ function getTempoWalletStatus(
   if (!account)
     return {
       chainId: state.chainId,
-      message: 'Connect Tempo Wallet or run mpp_wallet_setup.',
+      message: 'Run `openclaw mpp setup` or provide `TEMPO_PRIVATE_KEY`.',
       ready: false,
       ...(wallet.accessKey ? { requestedAccessKey: wallet.accessKey } : {}),
       source: 'wallet',
@@ -280,23 +391,26 @@ function isMatchingAccessKey(key: StoredAccessKey, account: string) {
 }
 
 function readPrivateKey(value: unknown): `0x${string}` | undefined {
-  if (typeof value !== 'string') return undefined
-  if (!/^0x[0-9a-fA-F]{64}$/.test(value)) return undefined
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]{64}$/.test(value))
+    throw new Error('wallet.privateKey must be a 32-byte hex private key.')
   return value as `0x${string}`
 }
 
 function readWalletConfig(value: unknown): WalletConfig {
-  const env = readEnvWalletConfig()
+  if (value === undefined) return { type: 'tempo', ...readEnvWalletConfig() }
   if (!value || typeof value !== 'object' || Array.isArray(value))
-    return { type: 'tempo', ...env }
+    throw new Error('wallet must be an object.')
 
   const input = value as Record<string, unknown>
   const type = input.type === undefined || input.type === 'tempo' ? 'tempo' : undefined
   if (!type) throw new Error(`Unsupported wallet type "${String(input.type)}".`)
 
   const accessKey = readAddress(input.accessKey)
-  const privateKey = readPrivateKey(input.privateKey) ?? env.privateKey
+  const privateKey = readPrivateKey(input.privateKey)
   const storagePath = typeof input.storagePath === 'string' ? input.storagePath : undefined
+  if (accessKey && privateKey)
+    throw new Error('Configure either wallet.accessKey or wallet.privateKey, not both.')
 
   return {
     type,
@@ -307,16 +421,32 @@ function readWalletConfig(value: unknown): WalletConfig {
 }
 
 function readEnvWalletConfig(): Partial<TempoWalletConfig> {
-  const privateKey = readPrivateKey(process.env.TEMPO_PRIVATE_KEY)
+  const value = process.env.TEMPO_PRIVATE_KEY
+  if (value !== undefined && !/^0x[0-9a-fA-F]{64}$/.test(value))
+    throw new Error('TEMPO_PRIVATE_KEY must be a 32-byte hex private key.')
+  const privateKey = value as `0x${string}` | undefined
   return privateKey ? { privateKey } : {}
 }
 
 function readAddress(value: unknown): `0x${string}` | undefined {
-  if (typeof value !== 'string') return undefined
-  if (!/^0x[0-9a-fA-F]{40}$/.test(value)) return undefined
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !/^0x[0-9a-fA-F]{40}$/.test(value))
+    throw new Error('wallet.accessKey must be a 20-byte hex address.')
   return value as `0x${string}`
 }
 
 function sameAddress(a: string, b: string) {
   return a.toLowerCase() === b.toLowerCase()
+}
+
+function walletKey(wallet: TempoWalletConfig) {
+  return JSON.stringify({
+    accessKey: wallet.accessKey,
+    privateKey: wallet.privateKey,
+    storagePath: wallet.storagePath ?? 'default',
+  })
+}
+
+function formatError(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }

@@ -3,7 +3,15 @@ import {
   definePluginEntry,
 } from 'openclaw/plugin-sdk/plugin-entry'
 import { Type } from 'typebox'
-import { closeMppx, createMppx, getWalletStatus, normalizeConfig, setupWallet } from './mpp.js'
+import { registerCli } from './cli.js'
+import {
+  beginWalletSetup,
+  closeMppx,
+  createMppx,
+  getWalletStatus,
+  normalizeConfig,
+} from './mpp.js'
+import { resolveSetupPolicy } from './setup.js'
 
 const configSchema = buildJsonPluginConfigSchema({
   type: 'object',
@@ -25,10 +33,12 @@ const configSchema = buildJsonPluginConfigSchema({
         },
         accessKey: {
           type: 'string',
+          pattern: '^0x[0-9a-fA-F]{40}$',
           description: 'Specific Tempo Wallet access key address to use.',
         },
         privateKey: {
           type: 'string',
+          pattern: '^0x[0-9a-fA-F]{64}$',
           description: 'Tempo private key. Prefer TEMPO_PRIVATE_KEY for local use.',
         },
         storagePath: {
@@ -51,6 +61,12 @@ const requestInitSchema = Type.Object(
 )
 const walletSetupSchema = Type.Object(
   {
+    expires: Type.Optional(
+      Type.String({ description: 'Access key lifetime, such as 24h or 7d.' }),
+    ),
+    limit: Type.Optional(
+      Type.String({ description: 'USDC spending limit, such as USDC=25.' }),
+    ),
     showDeposit: Type.Optional(
       Type.Boolean({ description: 'Show the Tempo Wallet deposit flow during setup.' }),
     ),
@@ -66,6 +82,8 @@ type FetchInput = {
   url: string
 }
 type WalletSetupInput = {
+  expires?: string
+  limit?: string
   showDeposit?: boolean
 }
 
@@ -75,17 +93,17 @@ export default definePluginEntry({
   description: 'Makes OpenClaw HTTP requests payment-aware with MPP.',
   configSchema,
   register(api) {
-    const config = normalizeConfig(api.pluginConfig)
+    registerCli(api)
 
-    if (api.registrationMode === 'full' && config.enabled !== false) {
+    if (api.registrationMode === 'full' && api.pluginConfig?.enabled !== false) {
       api.registerService({
         id: 'mpp',
         async start() {
           try {
-            await createMppx(config)
+            await createMppx(normalizeConfig(api.pluginConfig))
             api.logger.info('MPP payment-aware fetch initialized.')
           } catch (error) {
-            api.logger.warn(formatError(error))
+            api.logger.warn(`MPP is installed but has no payment account. ${formatError(error)}`)
           }
         },
         stop: closeMppx,
@@ -105,12 +123,10 @@ export default definePluginEntry({
           body: input.body,
           headers: input.headers,
           method: input.method,
+          signal,
         })
 
-        const contentType = response.headers.get('content-type') ?? ''
-        const text = contentType.includes('application/json')
-          ? JSON.stringify(await response.json())
-          : await response.text()
+        const text = await response.text()
         const headers = Object.fromEntries(response.headers.entries())
 
         return {
@@ -128,7 +144,7 @@ export default definePluginEntry({
     api.registerTool({
       name: 'mpp_wallet_status',
       label: 'MPP wallet status',
-      description: 'Show whether the configured MPP wallet can pay challenges.',
+      description: 'Show the configured MPP payment account and access key.',
       parameters: emptySchema,
       async execute(_toolCallId, _params, signal) {
         signal?.throwIfAborted()
@@ -140,13 +156,15 @@ export default definePluginEntry({
     api.registerTool({
       name: 'mpp_wallet_setup',
       label: 'MPP wallet setup',
-      description: 'Create a Tempo Wallet access key for MPP payments.',
+      description: 'Connect Tempo Wallet and authorize an access key for MPP payments.',
       parameters: walletSetupSchema,
       async execute(_toolCallId, params, signal) {
         signal?.throwIfAborted()
         const config = normalizeConfig(api.pluginConfig)
-        const status = await setupWallet(config, readWalletSetupInput(params))
-        if (config.enabled !== false && status.ready) await createMppx(config)
+        const status = await beginWalletSetup(
+          config,
+          resolveSetupPolicy(readWalletSetupInput(params)),
+        )
         return jsonToolResult(status)
       },
     })
@@ -183,7 +201,11 @@ function readHeaders(value: unknown) {
 function readWalletSetupInput(params: unknown): WalletSetupInput {
   if (!params || typeof params !== 'object') return {}
   const value = params as Record<string, unknown>
-  return typeof value.showDeposit === 'boolean' ? { showDeposit: value.showDeposit } : {}
+  return {
+    expires: typeof value.expires === 'string' ? value.expires : undefined,
+    limit: typeof value.limit === 'string' ? value.limit : undefined,
+    showDeposit: typeof value.showDeposit === 'boolean' ? value.showDeposit : undefined,
+  }
 }
 
 function jsonToolResult(details: unknown) {

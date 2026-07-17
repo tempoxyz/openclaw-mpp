@@ -4,6 +4,55 @@ Official MPP plugin for OpenClaw.
 
 ```bash
 openclaw plugins install @tempoxyz/openclaw-mpp
+openclaw mpp setup
+openclaw gateway run
+```
+
+## Connect a wallet
+
+### Tempo Wallet
+
+`openclaw mpp setup` uses the Tempo Accounts SDK to print a
+[Tempo Wallet](https://wallet.tempo.xyz) approval link. Your main wallet authorizes a
+seven-day access key with a 10 USDC spending limit; its private key is never shared with OpenClaw.
+Tempo Wallet setup currently targets Tempo mainnet.
+Customize the policy with `--expires`, `--limit`, or `--no-deposit`:
+
+```bash
+openclaw mpp setup --expires 24h --limit USDC=25 --no-deposit
+openclaw mpp status
+```
+
+Restart a running gateway after setup.
+
+### Tempo Wallet with a selected access key
+
+To use a specific key already authorized in the local Tempo Wallet store, configure its
+address in `openclaw.json`:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "mpp": {
+        "config": {
+          "wallet": {
+            "type": "tempo",
+            "accessKey": "0x..."
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Private key
+
+Set `TEMPO_PRIVATE_KEY` before starting OpenClaw to use a Tempo private key directly:
+
+```bash
+TEMPO_PRIVATE_KEY=0x... openclaw gateway run
 ```
 
 ## Supported requests
@@ -19,6 +68,10 @@ The plugin installs a payment-aware fetch when the gateway starts. Calls made th
 The explicit `mpp_fetch` tool uses the same payment-aware fetch. OpenClaw's built-in
 `web_fetch` and managed MCP transports use separate HTTP clients and are not covered yet.
 
+The `mpp_wallet_setup` and `mpp_wallet_status` tools let agents start the same setup flow
+and inspect the configured payment account. Gateway startup only loads existing wallet
+configuration and never opens an authorization flow.
+
 ## Local development
 
 ```bash
@@ -27,23 +80,5 @@ pnpm build
 pnpm check
 openclaw plugins install --link .
 openclaw plugins enable mpp
-TEMPO_PRIVATE_KEY=0x... openclaw gateway run
+openclaw gateway run
 ```
-
-The default wallet source is Tempo. Without `TEMPO_PRIVATE_KEY`, the plugin reads
-the Tempo Wallet store and uses an existing access key:
-
-```json
-{
-  "enabled": true,
-  "wallet": {
-    "type": "tempo",
-    "accessKey": "0x...",
-    "storagePath": "~/.tempo/wallet/store.json"
-  }
-}
-```
-
-Use the `mpp_wallet_status` tool to check whether the configured wallet can pay
-MPP challenges. Use `mpp_wallet_setup` to explicitly create a Tempo Wallet
-access key; startup only hydrates existing keys and never opens setup flows.
