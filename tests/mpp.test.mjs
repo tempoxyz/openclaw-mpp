@@ -14,7 +14,6 @@ import {
   createMppx,
   getWalletStatus,
   normalizeConfig,
-  selectAccessKey,
   setupWallet,
 } from '../dist/mpp.js'
 import { resolveSetupPolicy } from '../dist/setup.js'
@@ -24,7 +23,8 @@ const originalFetch = globalThis.fetch
 const key = `0x${'1'.repeat(64)}`
 const rootA = `0x${'a'.repeat(40)}`
 const rootB = `0x${'b'.repeat(40)}`
-const accessKeyA = `0x${'2'.repeat(40)}`
+const accessPrivateKeyA = `0x${'2'.repeat(64)}`
+const accessKeyA = Account.fromSecp256k1(accessPrivateKeyA).address
 const accessKeyB = `0x${'3'.repeat(40)}`
 const root = Account.fromSecp256k1(`0x${'9'.repeat(64)}`)
 
@@ -186,29 +186,20 @@ test('authorizes and hydrates a scoped Tempo Wallet access key', async () => {
   }
 })
 
-test('selects access keys for the active Tempo account', () => {
-  const state = {
-    accessKeys: [
-      { access: rootB, address: accessKeyB, chainId: 4217 },
-      { access: rootA, address: accessKeyA, chainId: 4217 },
-    ],
-    accounts: [{ address: rootA }, { address: rootB }],
-    activeAccount: 0,
-    chainId: 4217,
-  }
-
-  assert.equal(selectAccessKey(state), accessKeyA)
-  assert.equal(selectAccessKey({ ...state, activeAccount: 1 }), accessKeyB)
-  assert.throws(() => selectAccessKey(state, accessKeyB), /not available locally/)
-})
-
 test('reports Tempo Wallet status from local storage', async () => {
   const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-wallet-'))
   const storagePath = join(storageDir, 'wallet.json')
   await writeWalletStore(storagePath, {
     accessKeys: [
       { access: rootB, address: accessKeyB, chainId: 4217, keyType: 'secp256k1' },
-      { access: rootA, address: accessKeyA, chainId: 4217, keyType: 'secp256k1' },
+      {
+        access: rootA,
+        address: accessKeyA,
+        chainId: 4217,
+        expiry: Math.floor(Date.now() / 1_000) + 3_600,
+        keyType: 'secp256k1',
+        privateKey: accessPrivateKeyA,
+      },
     ],
     accounts: [{ address: rootA }, { address: rootB }],
     activeAccount: 0,
@@ -232,6 +223,30 @@ test('reports Tempo Wallet status from local storage', async () => {
     source: 'wallet',
     wallet: 'tempo',
   })
+})
+
+test('ignores expired Tempo Wallet access keys', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-wallet-'))
+  const storagePath = join(storageDir, 'wallet.json')
+  await writeWalletStore(storagePath, {
+    accessKeys: [
+      {
+        access: rootA,
+        address: accessKeyA,
+        chainId: 4217,
+        expiry: 1,
+        keyType: 'secp256k1',
+      },
+    ],
+    accounts: [{ address: rootA }],
+    activeAccount: 0,
+    chainId: 4217,
+  })
+
+  const status = await getWalletStatus({ wallet: { type: 'tempo', storagePath } })
+
+  assert.equal(status.ready, false)
+  assert.equal(status.activeAccessKeys, 0)
 })
 
 test('reports missing configured Tempo Wallet access key', async () => {

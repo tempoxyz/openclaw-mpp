@@ -47,6 +47,17 @@ type TempoProviderInstance = Pick<
   'getAccount' | 'getMppxParameters' | 'request'
 > & { store: TempoStoreInstance }
 type TempoStoreInstance = {
+  accessKeys: {
+    get: (options: {
+      accessKey: `0x${string}`
+      account: `0x${string}`
+      chainId: number
+    }) => Promise<{ address: `0x${string}` } | undefined>
+    list: (options: {
+      account: `0x${string}`
+      chainId: number
+    }) => TempoStore.State['accessKeys']
+  }
   getState: () => TempoStore.State
   persist: {
     hasHydrated: () => boolean
@@ -58,8 +69,6 @@ type TempoProviderOptions = Pick<
   TempoProvider.create.Options,
   'host' | 'open' | 'pollIntervalMs' | 'timeoutMs'
 >
-type StoredAccessKey = TempoStore.State['accessKeys'][number]
-
 export type WalletSetupOptions = TempoProviderOptions & {
   expiry?: number
   limits?: readonly { limit: `0x${string}`; token: `0x${string}` }[]
@@ -137,7 +146,7 @@ export async function getWalletStatus(config: PluginConfig): Promise<WalletStatu
         : 'Creating a Tempo Wallet authorization request.',
       setup: 'pending',
       ...(pending.setupUrl ? { setupUrl: pending.setupUrl } : {}),
-    }
+  }
 
   const provider = await createTempoProvider(wallet)
   return getTempoWalletStatus(provider, wallet)
@@ -151,7 +160,7 @@ export async function setupWallet(
   if (wallet.privateKey) return getWalletStatus(config)
 
   const provider = await createTempoProvider(wallet, options)
-  const status = getTempoWalletStatus(provider, wallet)
+  const status = await getTempoWalletStatus(provider, wallet)
   if (wallet.accessKey) {
     if (status.ready) return status
     throw new Error(
@@ -238,17 +247,18 @@ async function resolveWalletSource(config: PluginConfig): Promise<WalletSource> 
     }
 
   const provider = await createTempoProvider(wallet)
-  const accessKey = selectAccessKey(provider.store.getState(), wallet.accessKey)
+  const status = await getTempoWalletStatus(provider, wallet)
+  if (!status.ready) throw new Error(status.message)
   return {
     cacheKey: {
-      accessKey,
+      accessKey: wallet.accessKey,
       chainId: tempoChain.id,
       source: 'tempo',
       storagePath: wallet.storagePath ?? 'default',
     },
     parameters: {
       account: provider.getAccount(),
-      ...provider.getMppxParameters({ accessKey }),
+      ...provider.getMppxParameters(wallet.accessKey ? { accessKey: wallet.accessKey } : {}),
     },
   }
 }
@@ -273,29 +283,10 @@ async function createTempoProvider(
   return provider
 }
 
-export function selectAccessKey(
-  state: TempoStore.State,
-  requestedAccessKey: `0x${string}` | undefined,
-) {
-  const account = state.accounts[state.activeAccount]?.address
-  if (!account)
-    throw new Error('Run `openclaw mpp setup` or provide `TEMPO_PRIVATE_KEY`.')
-
-  const accessKey = findAccessKey(state, account, requestedAccessKey)
-
-  if (!accessKey?.address) {
-    if (requestedAccessKey)
-      throw new Error(`Tempo Wallet access key ${requestedAccessKey} is not available locally.`)
-    throw new Error('Create a Tempo Wallet access key before enabling MPP payments.')
-  }
-
-  return accessKey.address as `0x${string}`
-}
-
-function getTempoWalletStatus(
+async function getTempoWalletStatus(
   provider: TempoProviderInstance,
   wallet: TempoWalletConfig,
-): WalletStatus {
+): Promise<WalletStatus> {
   const state = provider.store.getState()
   const account = state.accounts[state.activeAccount]?.address as `0x${string}` | undefined
   if (!account)
@@ -308,10 +299,10 @@ function getTempoWalletStatus(
       wallet: 'tempo',
     }
 
-  const accessKeys = state.accessKeys.filter((key) => isMatchingAccessKey(key, account))
-  const accessKey = findAccessKey(state, account, wallet.accessKey)?.address as
-    | `0x${string}`
-    | undefined
+  const accessKeys = await availableAccessKeys(provider, account)
+  const accessKey = accessKeys.find(
+    (key) => !wallet.accessKey || sameAddress(key.address, wallet.accessKey),
+  )?.address
 
   return {
     account,
@@ -330,23 +321,21 @@ function getTempoWalletStatus(
   }
 }
 
-function findAccessKey(
-  state: TempoStore.State,
-  account: string,
-  requestedAccessKey: `0x${string}` | undefined,
+async function availableAccessKeys(
+  provider: TempoProviderInstance,
+  account: `0x${string}`,
 ) {
-  return state.accessKeys.find((key) => {
-    if (!isMatchingAccessKey(key, account)) return false
-    if (requestedAccessKey) return sameAddress(key.address!, requestedAccessKey)
-    return true
-  })
-}
-
-function isMatchingAccessKey(key: StoredAccessKey, account: string) {
-  if (!key.address) return false
-  if (key.chainId !== undefined && key.chainId !== tempoChain.id) return false
-  if (!key.access || !sameAddress(key.access, account)) return false
-  return true
+  const keys = provider.store.accessKeys.list({ account, chainId: tempoChain.id })
+  const accounts = await Promise.all(
+    keys.map((key) =>
+      provider.store.accessKeys.get({
+        accessKey: key.address,
+        account,
+        chainId: tempoChain.id,
+      }),
+    ),
+  )
+  return keys.filter((_, index) => accounts[index])
 }
 
 function readPrivateKey(
