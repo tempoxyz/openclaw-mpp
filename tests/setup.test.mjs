@@ -8,6 +8,7 @@ test('uses a seven-day 10 USDC policy by default', () => {
   assert.deepEqual(resolveSetupPolicy({}, 1_700_000_000_000), {
     expiry: 1_700_604_800,
     limits: [{ limit: '0x989680', token: usdc }],
+    network: 'mainnet',
     showDeposit: {
       amount: '10',
       displayName: 'OpenClaw',
@@ -29,8 +30,16 @@ test('accepts setup policy overrides', () => {
     {
       expiry: 1_700_086_400,
       limits: [{ limit: '0x1851960', token: usdc }],
+      network: 'mainnet',
       showDeposit: false,
     },
+  )
+})
+
+test('uses the selected network USDC', () => {
+  assert.equal(
+    resolveSetupPolicy({ network: 'testnet' }).limits[0].token,
+    '0x20c0000000000000000000009e8d7eb59b783726',
   )
 })
 

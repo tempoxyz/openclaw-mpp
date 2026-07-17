@@ -1,11 +1,16 @@
 import type { OpenClawPluginApi } from 'openclaw/plugin-sdk/plugin-entry'
 import { getWalletStatus, normalizeConfig, setupWallet } from './mpp.js'
+import { parseTempoNetwork } from './network.js'
 import { resolveSetupPolicy } from './setup.js'
 
 type SetupOptions = {
   deposit: boolean
   expires?: string
   limit?: string
+  network: string
+}
+type StatusOptions = {
+  network?: string
 }
 
 export function registerCli(api: OpenClawPluginApi) {
@@ -16,13 +21,22 @@ export function registerCli(api: OpenClawPluginApi) {
       mpp
         .command('status')
         .description('Show MPP wallet status')
-        .action(async () => printStatus(await getWalletStatus(normalizeConfig(api.pluginConfig))))
+        .option('--network <network>', 'Tempo network')
+        .action(async ({ network }: StatusOptions) =>
+          printStatus(
+            await getWalletStatus(
+              normalizeConfig(api.pluginConfig),
+              parseTempoNetwork(network),
+            ),
+          ),
+        )
 
       mpp
         .command('setup')
         .description('Connect Tempo Wallet for MPP payments')
         .option('--expires <duration>', 'Access key lifetime')
         .option('--limit <token=amount>', 'Access key spending limit')
+        .option('--network <network>', 'Tempo network', 'mainnet')
         .option('--no-deposit', 'Skip the Tempo Wallet funding prompt')
         .action(async (options: SetupOptions) => {
           const config = normalizeConfig(api.pluginConfig)
@@ -30,6 +44,7 @@ export function registerCli(api: OpenClawPluginApi) {
             ...resolveSetupPolicy({
               expires: options.expires,
               limit: options.limit,
+              network: parseTempoNetwork(options.network),
               showDeposit: options.deposit,
             }),
             open(url) {

@@ -7,7 +7,7 @@ import { afterEach, test } from 'node:test'
 import { Handler } from 'accounts/server'
 import { KeyAuthorization } from 'ox/tempo'
 import { Account } from 'viem/tempo'
-import { tempo } from 'viem/tempo/chains'
+import { tempo, tempoModerato } from 'viem/tempo/chains'
 import {
   beginWalletSetup,
   closeMppx,
@@ -144,47 +144,50 @@ test('requires a payment source', async () => {
   )
 })
 
-test('authorizes and hydrates a scoped Tempo Wallet access key', async () => {
-  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-setup-'))
-  const config = {
-    wallet: {
-      type: 'tempo',
-      storagePath: join(storageDir, 'wallet.json'),
-    },
-  }
-  const server = await createCodeAuthServer()
-  const policy = resolveSetupPolicy({}, Date.now())
+for (const [network, chain] of Object.entries({ mainnet: tempo, testnet: tempoModerato })) {
+  test(`authorizes and hydrates a scoped ${network} access key`, async () => {
+    const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-setup-'))
+    const config = {
+      wallet: {
+        type: 'tempo',
+        storagePath: join(storageDir, 'wallet.json'),
+      },
+    }
+    const server = await createCodeAuthServer()
+    const policy = resolveSetupPolicy({ network }, Date.now())
 
-  try {
-    const pending = await beginWalletSetup(config, {
-      ...policy,
-      host: `${server.url}/cli-auth`,
-      pollIntervalMs: 10,
-      timeoutMs: 2_000,
-    })
+    try {
+      const pending = await beginWalletSetup(config, {
+        ...policy,
+        host: `${server.url}/cli-auth`,
+        pollIntervalMs: 10,
+        timeoutMs: 2_000,
+      })
 
-    assert.equal(pending.ready, false)
-    assert.equal(pending.setup, 'pending')
-    assert.match(pending.setupUrl, new RegExp(`^${server.url}/cli-auth\\?code=`))
+      assert.equal(pending.ready, false)
+      assert.equal(pending.setup, 'pending')
+      assert.match(pending.setupUrl, new RegExp(`^${server.url}/cli-auth\\?code=`))
 
-    const request = await approveDeviceCode(pending.setupUrl, server.url)
-    assert.equal(request.expiry, policy.expiry)
-    assert.deepEqual(request.limits, [
-      { limit: '0x989680', token: policy.limits[0].token },
-    ])
-    assert.deepEqual(request.showDeposit, policy.showDeposit)
+      const request = await approveDeviceCode(pending.setupUrl, server.url)
+      assert.equal(request.expiry, policy.expiry)
+      assert.equal(Number(request.chainId), chain.id)
+      assert.deepEqual(request.limits, [
+        { limit: '0x989680', token: policy.limits[0].token },
+      ])
+      assert.deepEqual(request.showDeposit, policy.showDeposit)
 
-    const ready = await waitForWallet(config)
-    assert.equal(ready.ready, true)
-    assert.equal(ready.account, root.address)
-    assert.match(ready.accessKey, /^0x[0-9a-fA-F]{40}$/)
+      const ready = await waitForWallet(config, network)
+      assert.equal(ready.ready, true)
+      assert.equal(ready.account, root.address)
+      assert.match(ready.accessKey, /^0x[0-9a-fA-F]{40}$/)
 
-    const hydrated = await getWalletStatus(config)
-    assert.equal(hydrated.accessKey, ready.accessKey)
-  } finally {
-    await server.close()
-  }
-})
+      const hydrated = await getWalletStatus(config, network)
+      assert.equal(hydrated.accessKey, ready.accessKey)
+    } finally {
+      await server.close()
+    }
+  })
+}
 
 test('reports Tempo Wallet status from local storage', async () => {
   const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-wallet-'))
@@ -418,7 +421,7 @@ async function approveDeviceCode(setupUrl, serverUrl) {
 
 async function createCodeAuthServer() {
   const handler = Handler.codeAuth({
-    chains: [tempo],
+    chains: [tempo, tempoModerato],
     path: '/cli-auth',
     policy: {
       validate({ expiry, limits }) {
@@ -444,11 +447,11 @@ async function createCodeAuthServer() {
   }
 }
 
-async function waitForWallet(config) {
+async function waitForWallet(config, network) {
   const timeout = Date.now() + 5_000
   let status
   while (Date.now() < timeout) {
-    status = await getWalletStatus(config)
+    status = await getWalletStatus(config, network)
     if (status.ready) return status
     if (status.setup === 'failed') throw new Error(status.message)
     await new Promise((resolve) => setTimeout(resolve, 10))
