@@ -1,34 +1,41 @@
 # OpenClaw MPP plugin
 
-Official MPP plugin for OpenClaw.
+Official [MPP](https://mpp.dev) plugin for OpenClaw. It installs a payment-aware fetch in the
+Gateway so fetch-backed HTTP and MCP calls can satisfy payment challenges automatically.
+
+## Install
 
 ```bash
 openclaw plugins install openclaw-mpp
 openclaw mpp setup
-openclaw gateway run
+openclaw gateway restart
 ```
+
+Run `openclaw mpp status` to inspect the connected payment account.
 
 ## Connect a wallet
 
 ### Tempo Wallet
 
-`openclaw mpp setup` uses the Tempo Accounts SDK to print a
-[Tempo Wallet](https://wallet.tempo.xyz) approval link. Your main wallet authorizes a
-seven-day access key with a 10 USDC spending limit; its private key is never shared with OpenClaw.
-Tempo Wallet setup currently targets Tempo mainnet.
-Customize the policy with `--expires`, `--limit`, or `--no-deposit`:
+`openclaw mpp setup` uses the Tempo Accounts SDK to open a
+[Tempo Wallet](https://wallet.tempo.xyz) approval flow. Your wallet authorizes a seven-day
+access key with a 10 USDC spending limit; your wallet's root private key is never shared with
+OpenClaw.
+
+Customize the access key policy or create one for Tempo testnet:
 
 ```bash
 openclaw mpp setup --expires 24h --limit USDC=25 --no-deposit
-openclaw mpp status
+openclaw mpp setup --network testnet
+openclaw mpp status --network testnet
 ```
 
-Restart a running gateway after setup.
+Authorize an access key for each network the agent uses. Payment challenges select the matching
+network automatically.
 
-### Tempo Wallet with a selected access key
+### Existing access key
 
-To use a specific key already authorized in the local Tempo Wallet store, configure its
-address in `openclaw.json`:
+To select an access key already stored by Tempo Wallet, add its address to `openclaw.json`:
 
 ```json
 {
@@ -55,33 +62,39 @@ Set `TEMPO_PRIVATE_KEY` before starting OpenClaw to use a Tempo private key dire
 TEMPO_PRIVATE_KEY=0x... openclaw gateway run
 ```
 
-## Supported requests
+## What it provides
 
-The plugin installs a payment-aware fetch when the gateway starts. Calls made through
-`globalThis.fetch` support:
+The Gateway payment-aware fetch supports:
 
 - free HTTP requests
 - Tempo charge and session challenges
 - paid SSE session streams
 - fetch-backed MCP tool calls
 
-The explicit `mpp_fetch` tool uses the same payment-aware fetch. OpenClaw's built-in
-`web_fetch` and managed MCP transports use separate HTTP clients and are not covered yet.
+The `mpp_fetch` tool uses the same fetch explicitly. OpenClaw's built-in `web_fetch` and managed
+MCP transports use separate HTTP clients and are not covered yet.
 
-The `mpp_wallet_setup` and `mpp_wallet_status` tools let agents start the same setup flow
-and inspect the configured payment account. Gateway startup only loads existing wallet
-configuration and never opens an authorization flow.
+The `mpp_wallet_setup` and `mpp_wallet_status` tools let an agent start wallet setup and inspect
+mainnet or testnet access keys. If the active tool profile filters plugin tools, add `mpp` to the
+existing `tools.alsoAllow` list. Gateway startup only loads existing wallet configuration and
+never opens an authorization flow.
 
-## Local development
+## Development
 
 ```bash
 pnpm install
-pnpm build
+pnpm test
 pnpm check
+pnpm lint
+pnpm pack --dry-run
 openclaw plugins install --link .
-openclaw plugins enable mpp
-openclaw gateway run
 ```
+
+## Package
+
+- Plugin id: `mpp`
+- Package: [`openclaw-mpp`](https://www.npmjs.com/package/openclaw-mpp)
+- Minimum OpenClaw host: `2026.6.11`
 
 ## Security
 
