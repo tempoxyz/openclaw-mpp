@@ -1,7 +1,18 @@
 {
   "name": "openclaw-mpp",
   "version": "0.2.0",
-  "description": "Official MPP plugin for OpenClaw.",
+  "description": "Let OpenClaw call pay-per-use APIs using MPP with automatic HTTP 402 payments and a capped Tempo Wallet access key.",
+  "keywords": [
+    "agent-payments",
+    "ai-agents",
+    "http-402",
+    "machine-payments",
+    "mpp",
+    "openclaw",
+    "pay-per-use",
+    "stablecoin",
+    "tempo"
+  ],
   "type": "module",
   "license": "MIT",
   "homepage": "https://github.com/tempoxyz/openclaw-mpp#readme",

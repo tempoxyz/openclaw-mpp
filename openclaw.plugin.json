@@ -1,7 +1,7 @@
 {
   "id": "mpp",
   "name": "MPP",
-  "description": "Makes OpenClaw HTTP requests payment-aware with MPP.",
+  "description": "Calls pay-per-use APIs with automatic MPP HTTP 402 payments.",
   "version": "0.2.0",
   "activation": {
     "onStartup": true
