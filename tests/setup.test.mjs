@@ -7,7 +7,7 @@ const usdc = '0x20c000000000000000000000b9537d11c60e8b50'
 test('uses a seven-day 10 USDC policy by default', () => {
   assert.deepEqual(resolveSetupPolicy({}, 1_700_000_000_000), {
     expiry: 1_700_604_800,
-    limits: [{ limit: 10_000_000n, token: usdc }],
+    limits: [{ limit: '0x989680', token: usdc }],
     showDeposit: {
       amount: '10',
       displayName: 'OpenClaw',
@@ -28,7 +28,7 @@ test('accepts setup policy overrides', () => {
     ),
     {
       expiry: 1_700_086_400,
-      limits: [{ limit: 25_500_000n, token: usdc }],
+      limits: [{ limit: '0x1851960', token: usdc }],
       showDeposit: false,
     },
   )
