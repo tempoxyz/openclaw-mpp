@@ -3,7 +3,7 @@
 Official MPP plugin for OpenClaw.
 
 ```bash
-openclaw plugins install @tempoxyz/openclaw-mpp
+openclaw plugins install openclaw-mpp
 openclaw mpp setup
 openclaw gateway run
 ```

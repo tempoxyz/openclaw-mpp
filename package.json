@@ -1,5 +1,5 @@
 {
-  "name": "@tempoxyz/openclaw-mpp",
+  "name": "openclaw-mpp",
   "version": "0.2.0",
   "description": "Official MPP plugin for OpenClaw.",
   "type": "module",
@@ -51,8 +51,8 @@
       "label": "MPP"
     },
     "install": {
-      "clawhubSpec": "@tempoxyz/openclaw-mpp",
-      "npmSpec": "@tempoxyz/openclaw-mpp",
+      "clawhubSpec": "openclaw-mpp",
+      "npmSpec": "openclaw-mpp",
       "defaultChoice": "clawhub",
       "minHostVersion": ">=2026.6.11"
     },
