@@ -1,17 +1,55 @@
-# OpenClaw MPP plugin
+# MPP for OpenClaw
 
-Official [MPP](https://mpp.dev) plugin for OpenClaw. It installs a payment-aware fetch in the
-Gateway so fetch-backed HTTP and MCP calls can satisfy payment challenges automatically.
+[![npm](https://img.shields.io/npm/v/openclaw-mpp)](https://www.npmjs.com/package/openclaw-mpp)
+[![CI](https://github.com/tempoxyz/openclaw-mpp/actions/workflows/ci.yml/badge.svg)](https://github.com/tempoxyz/openclaw-mpp/actions/workflows/ci.yml)
+[![License](https://img.shields.io/npm/l/openclaw-mpp)](./LICENSE)
 
-## Install
+Give OpenClaw access to pay-per-use APIs without managing a separate API key or
+subscription for every service. The plugin installs a payment-aware fetch in the Gateway
+so HTTP and MCP calls can handle MPP HTTP 402 charges and streaming sessions using a
+capped, expiring Tempo Wallet access key.
+
+Maintained by [Tempo](https://tempo.xyz), the team behind
+[MPP](https://mpp.dev).
+
+## Quick start
+
+> [!IMPORTANT]
+> Tempo Wallet setup uses Tempo mainnet and authorizes real USDC spending. The default
+> access key expires after seven days and has a total 10 USDC spending limit.
+
+Install from ClawHub, connect Tempo Wallet, and restart the active gateway:
 
 ```bash
-openclaw plugins install openclaw-mpp
+openclaw plugins install clawhub:openclaw-mpp
 openclaw mpp setup
 openclaw gateway restart
 ```
 
-Run `openclaw mpp status` to inspect the connected payment account.
+Verify both the wallet and the live gateway runtime:
+
+```bash
+openclaw mpp status
+openclaw plugins inspect mpp --runtime --json
+```
+
+During OpenClaw's registry transition, npm remains available as an explicit fallback:
+
+```bash
+openclaw plugins install npm:openclaw-mpp
+```
+
+## Make a first paid request
+
+Send this prompt through OpenClaw:
+
+```text
+Use mpp_fetch to GET https://mpp.dev/api/ping/paid and report the HTTP status and payment receipt.
+```
+
+This test spends real USDC. A successful request returns HTTP 200 and includes the payment
+receipt in the tool result. If OpenClaw selects its built-in `web_fetch` tool instead,
+explicitly ask it to use `mpp_fetch`; built-in `web_fetch` is not payment-aware.
 
 ## Connect a wallet
 
@@ -31,7 +69,7 @@ openclaw mpp status --network testnet
 ```
 
 Authorize an access key for each network the agent uses. Payment challenges select the matching
-network automatically.
+network automatically. Restart a running gateway after setup with `openclaw gateway restart`.
 
 ### Existing access key
 

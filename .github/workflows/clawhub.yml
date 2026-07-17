@@ -1,0 +1,64 @@
+name: ClawHub
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Validate the package without publishing
+        required: false
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: clawhub-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  package:
+    name: Build package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 11.0.8
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build npm tarball
+        run: |
+          mkdir -p artifacts
+          pnpm pack --pack-destination artifacts
+      - name: Verify runtime output
+        run: |
+          archive="$(find artifacts -maxdepth 1 -name '*.tgz' -type f -print -quit)"
+          test -n "$archive"
+          tar -tzf "$archive" | grep -qx 'package/dist/index.js'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: openclaw-mpp-clawpack
+          path: artifacts/*.tgz
+          if-no-files-found: error
+
+  publish:
+    name: Publish package
+    needs: package
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    uses: openclaw/clawhub/.github/workflows/package-publish.yml@a230d962db64019462c2c8ee400755eb92169908
+    with:
+      package_artifact_name: openclaw-mpp-clawpack
+      owner: tempoxyz
+      dry_run: ${{ github.event_name == 'pull_request' || inputs.dry_run }}
