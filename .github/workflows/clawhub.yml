@@ -10,6 +10,11 @@ on:
         required: false
         type: boolean
         default: false
+      source_ref:
+        description: Exact commit to package; defaults to the dispatched ref
+        required: false
+        type: string
+        default: ''
 
 permissions: {}
 
@@ -27,6 +32,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+          ref: ${{ inputs.source_ref || github.sha }}
       - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
         with:
           version: 11.0.8
@@ -60,5 +66,4 @@ jobs:
     uses: openclaw/clawhub/.github/workflows/package-publish.yml@a230d962db64019462c2c8ee400755eb92169908
     with:
       package_artifact_name: openclaw-mpp-clawpack
-      owner: tempoxyz
       dry_run: ${{ github.event_name == 'pull_request' || inputs.dry_run }}

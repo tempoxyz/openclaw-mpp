@@ -134,11 +134,12 @@ jobs:
     if: github.event_name == 'push' && github.repository == 'tempoxyz/openclaw-mpp'
     needs: ci-gate
     permissions:
+      actions: write
       contents: write
       id-token: write
       pull-requests: write
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: Clone repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -155,6 +156,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: PR or publish
+        id: changesets
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           title: 'chore: version packages'
@@ -163,3 +165,18 @@ jobs:
           version: pnpm changeset:version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish released version to ClawHub
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          response="$(gh api \
+            --method POST \
+            -H 'X-GitHub-Api-Version: 2026-03-10' \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/clawhub.yml/dispatches" \
+            -f ref=main \
+            -f 'inputs[dry_run]=false' \
+            -f "inputs[source_ref]=${GITHUB_SHA}")"
+          run_id="$(jq -r '.workflow_run_id // empty' <<<"$response")"
+          test -n "$run_id"
+          gh run watch "$run_id" --exit-status
