@@ -82,3 +82,11 @@ openclaw plugins install --link .
 openclaw plugins enable mpp
 openclaw gateway run
 ```
+
+## Security
+
+Report vulnerabilities privately as described in [SECURITY.md](./SECURITY.md).
+
+## License
+
+MIT

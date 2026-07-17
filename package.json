@@ -4,6 +4,11 @@
   "description": "Official MPP plugin for OpenClaw.",
   "type": "module",
   "license": "MIT",
+  "homepage": "https://github.com/tempoxyz/openclaw-mpp#readme",
+  "bugs": {
+    "url": "https://github.com/tempoxyz/openclaw-mpp/issues"
+  },
+  "packageManager": "pnpm@11.0.8",
   "publishConfig": {
     "access": "public"
   },
@@ -12,9 +17,9 @@
     "url": "git+https://github.com/tempoxyz/openclaw-mpp.git"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "node scripts/version.mjs --check && tsc -p tsconfig.json",
     "changeset:publish": "changeset publish",
-    "changeset:version": "changeset version",
+    "changeset:version": "changeset version && node scripts/version.mjs",
     "check": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint src tests",
     "test": "pnpm build && node --test",
