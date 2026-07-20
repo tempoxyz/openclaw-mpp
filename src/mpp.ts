@@ -1,7 +1,10 @@
 import { Provider as TempoProvider, Storage as TempoStorage } from 'accounts/cli'
 import type { Store as TempoStore } from 'accounts'
 import { Mppx, tempo } from 'mppx/client'
+import { toHex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
+import { Actions } from 'viem/tempo'
+import { usdce } from 'viem/tokens'
 import {
   tempoChains,
   tempoNetworks,
@@ -36,6 +39,8 @@ export type WalletStatus = {
   activeAccessKeys?: number
   chainId?: number
   message: string
+  network: TempoNetwork
+  publication?: 'pending' | 'published'
   ready: boolean
   requestedAccessKey?: `0x${string}`
   setup?: 'failed' | 'pending'
@@ -48,7 +53,7 @@ type MppxClient = ReturnType<typeof Mppx.create>
 type TempoParameters = NonNullable<Parameters<typeof tempo>[0]>
 type TempoProviderInstance = Pick<
   TempoProvider.create.ReturnType,
-  'getAccount' | 'getMppxParameters' | 'request'
+  'getAccessKeyStatus' | 'getAccount' | 'getMppxParameters' | 'request'
 > & { store: TempoStoreInstance }
 type TempoStoreInstance = {
   accessKeys: {
@@ -72,7 +77,9 @@ type TempoStoreInstance = {
 type TempoProviderOptions = Pick<
   TempoProvider.create.Options,
   'host' | 'open' | 'pollIntervalMs' | 'timeoutMs'
->
+> & {
+  providerFactory?: typeof TempoProvider.create
+}
 export type WalletSetupOptions = TempoProviderOptions & {
   expiry?: number
   limits?: readonly { limit: `0x${string}`; token: `0x${string}` }[]
@@ -103,9 +110,12 @@ export function normalizeConfig(input: Record<string, unknown> | undefined): Plu
   }
 }
 
-export async function createMppx(config: PluginConfig) {
+export async function createMppx(
+  config: PluginConfig,
+  options: TempoProviderOptions = {},
+) {
   if (config.enabled === false) throw new Error('MPP is disabled.')
-  const source = await resolveWalletSource(config)
+  const source = await resolveWalletSource(config, options)
   const key = JSON.stringify(source.cacheKey)
 
   if (cached?.key === key) return cached.client
@@ -119,13 +129,16 @@ export async function createMppx(config: PluginConfig) {
   return client
 }
 
-export async function enablePaymentAwareFetch(config: PluginConfig) {
+export async function enablePaymentAwareFetch(
+  config: PluginConfig,
+  options: TempoProviderOptions = {},
+) {
   if (config.enabled === false) {
     closeMppx()
     return false
   }
   try {
-    await createMppx(config)
+    await createMppx(config, options)
     return true
   } catch (error) {
     if (!(error instanceof PaymentAccountUnavailableError)) throw error
@@ -142,22 +155,24 @@ export function closeMppx() {
 
 export async function getWalletStatus(
   config: PluginConfig,
-  network?: TempoNetwork,
+  network: TempoNetwork = 'mainnet',
+  options: TempoProviderOptions = {},
 ): Promise<WalletStatus> {
   const wallet = config.wallet
   if (wallet.privateKey) {
     const account = privateKeyToAccount(wallet.privateKey)
     return {
       account: account.address,
-      ...(network ? { chainId: tempoNetworks[network].id } : {}),
+      chainId: tempoNetworks[network].id,
       message: 'Tempo private key configured.',
+      network,
       ready: true,
       source: 'privateKey',
       wallet: 'tempo',
     }
   }
 
-  const pending = pendingSetup?.key === walletKey(wallet) ? pendingSetup : undefined
+  const pending = pendingSetup?.key === setupKey(wallet, network) ? pendingSetup : undefined
   if (pending?.error)
     return {
       ...pending.status,
@@ -174,7 +189,7 @@ export async function getWalletStatus(
       ...(pending.setupUrl ? { setupUrl: pending.setupUrl } : {}),
   }
 
-  const provider = await createTempoProvider(wallet)
+  const provider = await createTempoProvider(wallet, options)
   return getTempoWalletStatus(provider, wallet, network)
 }
 
@@ -183,13 +198,15 @@ export async function setupWallet(
   options: WalletSetupOptions = {},
 ): Promise<WalletStatus> {
   const wallet = config.wallet
-  if (wallet.privateKey) return getWalletStatus(config, options.network)
+  if (wallet.privateKey) return getWalletStatus(config, options.network, options)
 
   const network = options.network ?? 'mainnet'
   const provider = await createTempoProvider(wallet, options, tempoNetworks[network].id)
   const status = await getTempoWalletStatus(provider, wallet, network)
   if (wallet.accessKey) {
     if (status.ready) return status
+    if (status.accessKey && status.publication === 'pending')
+      return publishTempoAccessKey(provider, wallet, network, status)
     throw new Error(
       'Configured Tempo Wallet access key is not available locally. Remove wallet.accessKey to create a new key.',
     )
@@ -205,7 +222,12 @@ export async function setupWallet(
     params: [parameters],
   })
 
-  return getTempoWalletStatus(provider, wallet, network)
+  return publishTempoAccessKey(
+    provider,
+    wallet,
+    network,
+    await getTempoWalletStatus(provider, wallet, network),
+  )
 }
 
 export async function beginWalletSetup(
@@ -213,10 +235,10 @@ export async function beginWalletSetup(
   options: WalletSetupOptions = {},
 ): Promise<WalletStatus> {
   const network = options.network ?? 'mainnet'
-  const status = await getWalletStatus(config, network)
+  const status = await getWalletStatus(config, network, options)
   if (status.ready) return status
 
-  const key = walletKey(config.wallet)
+  const key = setupKey(config.wallet, network)
   if (pendingSetup?.error) pendingSetup = undefined
   if (pendingSetup && pendingSetup.key !== key)
     throw new Error('Tempo Wallet setup is already in progress.')
@@ -252,7 +274,7 @@ export async function beginWalletSetup(
       (error) => Promise.reject(error),
     ),
   ])
-  if (!setupUrl) return getWalletStatus(config)
+  if (!setupUrl) return getWalletStatus(config, network, options)
   return {
     ...status,
     message: 'Approve the access key in Tempo Wallet.',
@@ -261,7 +283,10 @@ export async function beginWalletSetup(
   }
 }
 
-async function resolveWalletSource(config: PluginConfig): Promise<WalletSource> {
+async function resolveWalletSource(
+  config: PluginConfig,
+  options: TempoProviderOptions = {},
+): Promise<WalletSource> {
   const wallet = config.wallet
   if (wallet.privateKey)
     return {
@@ -274,9 +299,26 @@ async function resolveWalletSource(config: PluginConfig): Promise<WalletSource> 
       },
     }
 
-  const provider = await createTempoProvider(wallet)
-  const status = await getTempoWalletStatus(provider, wallet)
-  if (!status.ready) throw new PaymentAccountUnavailableError(status.message)
+  const provider = await createTempoProvider(wallet, options)
+  const results = await Promise.allSettled(
+    (Object.keys(tempoNetworks) as TempoNetwork[]).map(async (network) => {
+      const status = await getTempoWalletStatus(provider, wallet, network)
+      if (status.accessKey && status.publication === 'pending')
+        return publishTempoAccessKey(provider, wallet, network, status)
+      return status
+    }),
+  )
+  const statuses = results.flatMap((result) =>
+    result.status === 'fulfilled' ? [result.value] : [],
+  )
+  const ready = statuses.find((status) => status.ready)
+  if (!ready) {
+    const failure = results.find((result) => result.status === 'rejected')
+    if (failure?.status === 'rejected') throw failure.reason
+    throw new PaymentAccountUnavailableError(
+      statuses.find((status) => status.accessKey)?.message ?? statuses[0]!.message,
+    )
+  }
   return {
     cacheKey: {
       accessKey: wallet.accessKey,
@@ -295,7 +337,7 @@ async function createTempoProvider(
   options: TempoProviderOptions = {},
   chainId?: number,
 ) {
-  const provider = TempoProvider.create({
+  const provider = (options.providerFactory ?? TempoProvider.create)({
     chains: tempoChains,
     host: options.host,
     mpp: false,
@@ -314,38 +356,44 @@ async function createTempoProvider(
 async function getTempoWalletStatus(
   provider: TempoProviderInstance,
   wallet: TempoWalletConfig,
-  network?: TempoNetwork,
+  network: TempoNetwork,
 ): Promise<WalletStatus> {
   const state = provider.store.getState()
-  const chainId = network ? tempoNetworks[network].id : state.chainId
+  const chainId = tempoNetworks[network].id
   const account = state.accounts[state.activeAccount]?.address as `0x${string}` | undefined
   if (!account)
     return {
       chainId,
       message: 'Run `openclaw mpp setup` or provide `TEMPO_PRIVATE_KEY`.',
+      network,
       ready: false,
       ...(wallet.accessKey ? { requestedAccessKey: wallet.accessKey } : {}),
       source: 'wallet',
       wallet: 'tempo',
     }
 
-  const chains = network ? [tempoNetworks[network]] : tempoChains
-  const accessKeys = await availableAccessKeys(provider, account, chains.map((chain) => chain.id))
-  const accessKey = accessKeys.find(
-    (key) => !wallet.accessKey || sameAddress(key.address, wallet.accessKey),
-  )?.address
+  const accessKeys = await availableAccessKeys(provider, account, chainId)
+  const selected = accessKeys.find(
+    ({ key }) => !wallet.accessKey || sameAddress(key.address, wallet.accessKey),
+  )
+  const accessKey = selected?.key.address
+  const publication = selected?.publication
 
   return {
     account,
     activeAccessKeys: accessKeys.length,
     ...(accessKey ? { accessKey } : {}),
     chainId,
-    message: accessKey
+    message: publication === 'published'
       ? 'Tempo Wallet access key ready.'
+      : publication === 'pending'
+        ? 'Tempo Wallet access key pending publication.'
       : wallet.accessKey
         ? 'Configured Tempo Wallet access key is not available locally.'
         : 'Create a Tempo Wallet access key with mpp_wallet_setup.',
-    ready: Boolean(accessKey),
+    network,
+    ...(publication ? { publication } : {}),
+    ready: publication === 'published',
     ...(wallet.accessKey ? { requestedAccessKey: wallet.accessKey } : {}),
     source: 'wallet',
     wallet: 'tempo',
@@ -355,11 +403,9 @@ async function getTempoWalletStatus(
 async function availableAccessKeys(
   provider: TempoProviderInstance,
   account: `0x${string}`,
-  chainIds: readonly number[],
+  chainId: number,
 ) {
-  const keys = chainIds.flatMap((chainId) =>
-    provider.store.accessKeys.list({ account, chainId }),
-  )
+  const keys = provider.store.accessKeys.list({ account, chainId })
   const accounts = await Promise.all(
     keys.map((key) =>
       provider.store.accessKeys.get({
@@ -369,7 +415,49 @@ async function availableAccessKeys(
       }),
     ),
   )
-  return keys.filter((_, index) => accounts[index])
+  const localKeys = keys.filter((_, index) => accounts[index])
+  const publications = await Promise.all(
+    localKeys.map((key) =>
+      provider.getAccessKeyStatus({
+        accessKey: key.address,
+        address: account,
+        chainId,
+      }),
+    ),
+  )
+  return localKeys.flatMap((key, index) => {
+    const publication = publications[index]
+    if (publication !== 'pending' && publication !== 'published') return []
+    return [{ key, publication }]
+  })
+}
+
+async function publishTempoAccessKey(
+  provider: TempoProviderInstance,
+  wallet: TempoWalletConfig,
+  network: TempoNetwork,
+  status: WalletStatus,
+) {
+  if (status.ready) return status
+  if (!status.account || !status.accessKey || status.publication !== 'pending')
+    throw new Error(status.message)
+
+  const chainId = tempoNetworks[network].id
+  const token = usdce.addresses[chainId]
+  const call = Actions.token.transfer.call({
+    amount: 0n,
+    to: status.account,
+    token,
+  })
+  await provider.request({
+    method: 'eth_sendTransactionSync',
+    params: [{ calls: [call], chainId: toHex(chainId) }],
+  })
+
+  const published = await getTempoWalletStatus(provider, wallet, network)
+  if (!published.ready)
+    throw new Error(`Tempo Wallet access key was not published on ${network}.`)
+  return published
 }
 
 function readPrivateKey(
@@ -427,6 +515,10 @@ function walletKey(wallet: TempoWalletConfig) {
     privateKey: wallet.privateKey,
     storagePath: wallet.storagePath ?? 'default',
   })
+}
+
+function setupKey(wallet: TempoWalletConfig, network: TempoNetwork) {
+  return `${walletKey(wallet)}:${network}`
 }
 
 function formatError(error: unknown) {

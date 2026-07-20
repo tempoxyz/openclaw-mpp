@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
+import { Provider as TempoProvider } from 'accounts/cli'
 import { Handler } from 'accounts/server'
 import { KeyAuthorization } from 'ox/tempo'
 import { Account } from 'viem/tempo'
@@ -28,9 +29,11 @@ const accessPrivateKeyA = `0x${'2'.repeat(64)}`
 const accessKeyA = Account.fromSecp256k1(accessPrivateKeyA).address
 const accessKeyB = `0x${'3'.repeat(40)}`
 const root = Account.fromSecp256k1(`0x${'9'.repeat(64)}`)
+const publishRequests = []
 
 afterEach(async () => {
   await closeMppx()
+  publishRequests.length = 0
   restoreEnv('TEMPO_PRIVATE_KEY', originalTempoPrivateKey)
   globalThis.fetch = originalFetch
 })
@@ -190,6 +193,7 @@ for (const [network, chain] of Object.entries({ mainnet: tempo, testnet: tempoMo
   test(`authorizes and hydrates a scoped ${network} access key`, async () => {
     const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-setup-'))
     const config = {
+      enabled: false,
       wallet: {
         type: 'tempo',
         storagePath: join(storageDir, 'wallet.json'),
@@ -203,6 +207,7 @@ for (const [network, chain] of Object.entries({ mainnet: tempo, testnet: tempoMo
         ...policy,
         host: `${server.url}/cli-auth`,
         pollIntervalMs: 10,
+        providerFactory: createTestTempoProvider,
         timeoutMs: 2_000,
       })
 
@@ -218,12 +223,22 @@ for (const [network, chain] of Object.entries({ mainnet: tempo, testnet: tempoMo
       ])
       assert.deepEqual(request.showDeposit, policy.showDeposit)
 
-      const ready = await waitForWallet(config, network)
+      const ready = await waitForWallet(config, network, {
+        providerFactory: createTestTempoProvider,
+      })
       assert.equal(ready.ready, true)
       assert.equal(ready.account, root.address)
+      assert.equal(ready.network, network)
+      assert.equal(ready.publication, 'published')
       assert.match(ready.accessKey, /^0x[0-9a-fA-F]{40}$/)
+      assert.equal(publishRequests.length, 1)
+      assert.equal(Number(BigInt(publishRequests[0].params[0].chainId)), chain.id)
+      assert.equal(publishRequests[0].params[0].calls.length, 1)
+      assert.equal(publishRequests[0].params[0].feeToken, undefined)
 
-      const hydrated = await getWalletStatus(config, network)
+      const hydrated = await getWalletStatus(config, network, {
+        providerFactory: createTestTempoProvider,
+      })
       assert.equal(hydrated.accessKey, ready.accessKey)
     } finally {
       await server.close()
@@ -251,12 +266,16 @@ test('reports Tempo Wallet status from local storage', async () => {
     chainId: 4217,
   })
 
-  const status = await getWalletStatus({
-    wallet: {
-      type: 'tempo',
-      storagePath,
+  const status = await getWalletStatus(
+    {
+      wallet: {
+        type: 'tempo',
+        storagePath,
+      },
     },
-  })
+    'mainnet',
+    { providerFactory: createTestTempoProvider },
+  )
 
   assert.deepEqual(status, {
     accessKey: accessKeyA,
@@ -264,10 +283,93 @@ test('reports Tempo Wallet status from local storage', async () => {
     activeAccessKeys: 1,
     chainId: 4217,
     message: 'Tempo Wallet access key ready.',
+    network: 'mainnet',
+    publication: 'published',
     ready: true,
     source: 'wallet',
     wallet: 'tempo',
   })
+})
+
+test('defaults status to mainnet and selects access keys by network', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-wallet-'))
+  const storagePath = join(storageDir, 'wallet.json')
+  const testnetPrivateKey = `0x${'5'.repeat(64)}`
+  const testnetAccessKey = Account.fromSecp256k1(testnetPrivateKey).address
+  await writeWalletStore(storagePath, {
+    accessKeys: [
+      {
+        access: rootA,
+        address: accessKeyA,
+        chainId: 4217,
+        keyType: 'secp256k1',
+        privateKey: accessPrivateKeyA,
+      },
+      {
+        access: rootA,
+        address: testnetAccessKey,
+        chainId: 42431,
+        keyType: 'secp256k1',
+        privateKey: testnetPrivateKey,
+      },
+    ],
+    accounts: [{ address: rootA }],
+    activeAccount: 0,
+    chainId: 42431,
+  })
+  const config = { wallet: { type: 'tempo', storagePath } }
+
+  const mainnet = await getWalletStatus(config, 'mainnet', {
+    providerFactory: createTestTempoProvider,
+  })
+  const testnet = await getWalletStatus(config, 'testnet', {
+    providerFactory: createTestTempoProvider,
+  })
+
+  assert.equal(mainnet.network, 'mainnet')
+  assert.equal(mainnet.chainId, 4217)
+  assert.equal(mainnet.accessKey, accessKeyA)
+  assert.equal(testnet.network, 'testnet')
+  assert.equal(testnet.chainId, 42431)
+  assert.equal(testnet.accessKey, testnetAccessKey)
+})
+
+test('keeps a ready network usable when another publication fails', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-wallet-'))
+  const storagePath = join(storageDir, 'wallet.json')
+  const testnetPrivateKey = `0x${'5'.repeat(64)}`
+  const testnetAccessKey = Account.fromSecp256k1(testnetPrivateKey).address
+  await writeWalletStore(storagePath, {
+    accessKeys: [
+      {
+        access: rootA,
+        address: accessKeyA,
+        chainId: tempo.id,
+        keyType: 'secp256k1',
+        privateKey: accessPrivateKeyA,
+      },
+      {
+        access: rootA,
+        address: testnetAccessKey,
+        chainId: tempoModerato.id,
+        keyAuthorization: {},
+        keyType: 'secp256k1',
+        privateKey: testnetPrivateKey,
+      },
+    ],
+    accounts: [{ address: rootA }],
+    activeAccount: 0,
+    chainId: tempo.id,
+  })
+
+  const enabled = await enablePaymentAwareFetch(
+    { wallet: { type: 'tempo', storagePath } },
+    { providerFactory: createTestTempoProviderWithFailedTestnetPublication },
+  )
+
+  assert.equal(enabled, true)
+  assert.equal(publishRequests.length, 1)
+  assert.equal(Number(BigInt(publishRequests[0].params[0].chainId)), tempoModerato.id)
 })
 
 test('ignores expired Tempo Wallet access keys', async () => {
@@ -288,7 +390,11 @@ test('ignores expired Tempo Wallet access keys', async () => {
     chainId: 4217,
   })
 
-  const status = await getWalletStatus({ wallet: { type: 'tempo', storagePath } })
+  const status = await getWalletStatus(
+    { wallet: { type: 'tempo', storagePath } },
+    'mainnet',
+    { providerFactory: createTestTempoProvider },
+  )
 
   assert.equal(status.ready, false)
   assert.equal(status.activeAccessKeys, 0)
@@ -304,13 +410,17 @@ test('reports missing configured Tempo Wallet access key', async () => {
     chainId: 4217,
   })
 
-  const status = await getWalletStatus({
-    wallet: {
-      accessKey: accessKeyB,
-      type: 'tempo',
-      storagePath,
+  const status = await getWalletStatus(
+    {
+      wallet: {
+        accessKey: accessKeyB,
+        type: 'tempo',
+        storagePath,
+      },
     },
-  })
+    'mainnet',
+    { providerFactory: createTestTempoProvider },
+  )
 
   assert.equal(status.ready, false)
   assert.equal(status.message, 'Configured Tempo Wallet access key is not available locally.')
@@ -410,6 +520,57 @@ function requestHeaders(input, init) {
   return new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
 }
 
+function createTestTempoProvider(options) {
+  const provider = TempoProvider.create(options)
+  const request = provider.request.bind(provider)
+
+  provider.getAccessKeyStatus = async ({ accessKey, address, chainId }) => {
+    const record = provider.store.accessKeys
+      .list({ account: address, chainId })
+      .find((key) => !accessKey || key.address.toLowerCase() === accessKey.toLowerCase())
+    if (!record) return 'missing'
+    return record.keyAuthorization ? 'pending' : 'published'
+  }
+  provider.request = async (input, options) => {
+    if (input.method !== 'eth_sendTransactionSync') return request(input, options)
+
+    publishRequests.push(input)
+    const chainId = input.params[0].chainId
+      ? Number(BigInt(input.params[0].chainId))
+      : provider.store.getState().chainId
+    provider.store.setState({
+      accessKeys: provider.store
+        .getState()
+        .accessKeys.map((key) =>
+          key.chainId === chainId ? { ...key, keyAuthorization: undefined } : key,
+        ),
+    })
+    return { status: '0x1', transactionHash: `0x${'4'.repeat(64)}` }
+  }
+
+  return provider
+}
+
+function createTestTempoProviderWithFailedTestnetPublication(options) {
+  const provider = createTestTempoProvider(options)
+  const request = provider.request.bind(provider)
+
+  provider.request = async (input, requestOptions) => {
+    const chainId = input.params?.[0]?.chainId
+    if (
+      input.method === 'eth_sendTransactionSync' &&
+      chainId &&
+      Number(BigInt(chainId)) === tempoModerato.id
+    ) {
+      publishRequests.push(input)
+      throw new Error('Testnet publication failed.')
+    }
+    return request(input, requestOptions)
+  }
+
+  return provider
+}
+
 function restoreEnv(name, value) {
   if (value === undefined) delete process.env[name]
   else process.env[name] = value
@@ -489,11 +650,11 @@ async function createCodeAuthServer() {
   }
 }
 
-async function waitForWallet(config, network) {
+async function waitForWallet(config, network, options) {
   const timeout = Date.now() + 5_000
   let status
   while (Date.now() < timeout) {
-    status = await getWalletStatus(config, network)
+    status = await getWalletStatus(config, network, options)
     if (status.ready) return status
     if (status.setup === 'failed') throw new Error(status.message)
     await new Promise((resolve) => setTimeout(resolve, 10))

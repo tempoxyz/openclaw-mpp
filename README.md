@@ -58,7 +58,8 @@ explicitly ask it to use `mpp_fetch`; built-in `web_fetch` is not payment-aware.
 `openclaw mpp setup` uses the Tempo Accounts SDK to open a
 [Tempo Wallet](https://wallet.tempo.xyz) approval flow. Your wallet authorizes a seven-day
 access key with a 10 USDC spending limit; your wallet's root private key is never shared with
-OpenClaw.
+OpenClaw. Mainnet is the default. After approval, setup publishes the access key on the selected
+network with a zero-value USDC self-transfer so it is ready before the command completes.
 
 Customize the access key policy or create one for Tempo testnet:
 
@@ -68,8 +69,9 @@ openclaw mpp setup --network testnet
 openclaw mpp status --network testnet
 ```
 
-Authorize an access key for each network the agent uses. Payment challenges select the matching
-network automatically. Restart a running gateway after setup with `openclaw gateway restart`.
+Authorize an access key for each network the agent uses. The Accounts SDK selects the matching
+access key from each payment Challenge's chain ID, so one gateway can handle mainnet and testnet
+without a network switch. Restart a running gateway after setup with `openclaw gateway restart`.
 
 ### Existing access key
 

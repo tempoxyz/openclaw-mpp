@@ -53,7 +53,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "@types/node": "^24.0.10",
-    "openclaw": "2026.6.11",
+    "openclaw": "2026.7.1-2",
     "ox": "~0.14.30",
     "oxlint": "^1.72.0",
     "typescript": "^6.0.3"
