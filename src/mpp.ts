@@ -84,6 +84,8 @@ const defaultAccessKeyTtlSeconds = 7 * 24 * 60 * 60
 
 let cached: { client: MppxClient; key: string } | undefined
 
+class PaymentAccountUnavailableError extends Error {}
+
 let pendingSetup:
   | {
       error?: string
@@ -115,6 +117,21 @@ export async function createMppx(config: PluginConfig) {
 
   cached = { client, key }
   return client
+}
+
+export async function enablePaymentAwareFetch(config: PluginConfig) {
+  if (config.enabled === false) {
+    closeMppx()
+    return false
+  }
+  try {
+    await createMppx(config)
+    return true
+  } catch (error) {
+    if (!(error instanceof PaymentAccountUnavailableError)) throw error
+    closeMppx()
+    return false
+  }
 }
 
 export function closeMppx() {
@@ -259,7 +276,7 @@ async function resolveWalletSource(config: PluginConfig): Promise<WalletSource> 
 
   const provider = await createTempoProvider(wallet)
   const status = await getTempoWalletStatus(provider, wallet)
-  if (!status.ready) throw new Error(status.message)
+  if (!status.ready) throw new PaymentAccountUnavailableError(status.message)
   return {
     cacheKey: {
       accessKey: wallet.accessKey,

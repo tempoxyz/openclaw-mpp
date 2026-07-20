@@ -12,6 +12,7 @@ import {
   beginWalletSetup,
   closeMppx,
   createMppx,
+  enablePaymentAwareFetch,
   getWalletStatus,
   normalizeConfig,
   setupWallet,
@@ -142,6 +143,47 @@ test('requires a payment source', async () => {
     }),
     /openclaw mpp setup/,
   )
+})
+
+test('allows free requests without a payment source', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-free-'))
+  const rawFetch = async () => new Response('free', { status: 200 })
+  globalThis.fetch = rawFetch
+
+  const enabled = await enablePaymentAwareFetch({
+    wallet: {
+      type: 'tempo',
+      storagePath: join(storageDir, 'wallet.json'),
+    },
+  })
+  const response = await fetch('https://api.example.com/free')
+
+  assert.equal(enabled, false)
+  assert.equal(globalThis.fetch, rawFetch)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'free')
+})
+
+test('returns an unpaid Challenge without a payment source', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-unpaid-'))
+  const rawFetch = async () =>
+    new Response('payment required', {
+      headers: { 'www-authenticate': 'Payment realm="api.example.com"' },
+      status: 402,
+    })
+  globalThis.fetch = rawFetch
+
+  const enabled = await enablePaymentAwareFetch({
+    wallet: {
+      type: 'tempo',
+      storagePath: join(storageDir, 'wallet.json'),
+    },
+  })
+  const response = await fetch('https://api.example.com/paid')
+
+  assert.equal(enabled, false)
+  assert.equal(response.status, 402)
+  assert.equal(response.headers.get('www-authenticate'), 'Payment realm="api.example.com"')
 })
 
 for (const [network, chain] of Object.entries({ mainnet: tempo, testnet: tempoModerato })) {

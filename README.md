@@ -112,6 +112,9 @@ The Gateway payment-aware fetch supports:
 The `mpp_fetch` tool uses the same fetch explicitly. OpenClaw's built-in `web_fetch` and managed
 MCP transports use separate HTTP clients and are not covered yet.
 
+Free requests do not require a configured wallet. Without a payment account, protected endpoints
+return their original HTTP 402 Challenge without a payment retry.
+
 The `mpp_wallet_setup` and `mpp_wallet_status` tools let an agent start wallet setup and inspect
 mainnet or testnet access keys. If the active tool profile filters plugin tools, add `mpp` to the
 existing `tools.alsoAllow` list. Gateway startup only loads existing wallet configuration and
