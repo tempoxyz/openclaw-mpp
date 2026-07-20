@@ -7,7 +7,7 @@ import { registerCli } from './cli.js'
 import {
   beginWalletSetup,
   closeMppx,
-  createMppx,
+  enablePaymentAwareFetch,
   getWalletStatus,
   normalizeConfig,
 } from './mpp.js'
@@ -102,10 +102,11 @@ export default definePluginEntry({
         id: 'mpp',
         async start() {
           try {
-            await createMppx(normalizeConfig(api.pluginConfig))
-            api.logger.info('MPP payment-aware fetch initialized.')
+            const enabled = await enablePaymentAwareFetch(normalizeConfig(api.pluginConfig))
+            if (enabled) api.logger.info('MPP payment-aware fetch initialized.')
+            else api.logger.info('MPP free fetch initialized; connect a wallet to pay Challenges.')
           } catch (error) {
-            api.logger.warn(`MPP is installed but has no payment account. ${formatError(error)}`)
+            api.logger.warn(`MPP payment-aware fetch could not initialize. ${formatError(error)}`)
           }
         },
         stop: closeMppx,
@@ -120,7 +121,7 @@ export default definePluginEntry({
       async execute(_toolCallId, params, signal) {
         signal?.throwIfAborted()
         const input = readFetchInput(params)
-        await createMppx(normalizeConfig(api.pluginConfig))
+        await enablePaymentAwareFetch(normalizeConfig(api.pluginConfig))
         const response = await fetch(input.url, {
           body: input.body,
           headers: input.headers,
