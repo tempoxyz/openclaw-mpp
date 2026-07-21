@@ -189,6 +189,72 @@ test('returns an unpaid Challenge without a payment source', async () => {
   assert.equal(response.headers.get('www-authenticate'), 'Payment realm="api.example.com"')
 })
 
+test('allows free requests when wallet status is unavailable', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-free-'))
+  const storagePath = join(storageDir, 'wallet.json')
+  await writeWalletStore(storagePath, {
+    accessKeys: [
+      {
+        access: rootA,
+        address: accessKeyA,
+        chainId: tempo.id,
+        keyType: 'secp256k1',
+        privateKey: accessPrivateKeyA,
+      },
+    ],
+    accounts: [{ address: rootA }],
+    activeAccount: 0,
+    chainId: tempo.id,
+  })
+  const rawFetch = async () => new Response('free', { status: 200 })
+  globalThis.fetch = rawFetch
+
+  const enabled = await enablePaymentAwareFetch(
+    { wallet: { type: 'tempo', storagePath } },
+    { providerFactory: createTestTempoProviderWithUnavailableStatus },
+  )
+  const response = await fetch('https://api.example.com/free')
+
+  assert.equal(enabled, false)
+  assert.equal(globalThis.fetch, rawFetch)
+  assert.equal(response.status, 200)
+  assert.equal(await response.text(), 'free')
+})
+
+test('does not recheck wallet status for a cached client', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-wallet-'))
+  const storagePath = join(storageDir, 'wallet.json')
+  await writeWalletStore(storagePath, {
+    accessKeys: [
+      {
+        access: rootA,
+        address: accessKeyA,
+        chainId: tempo.id,
+        keyType: 'secp256k1',
+        privateKey: accessPrivateKeyA,
+      },
+    ],
+    accounts: [{ address: rootA }],
+    activeAccount: 0,
+    chainId: tempo.id,
+  })
+  let statusChecks = 0
+  const providerFactory = (options) => {
+    const provider = createTestTempoProvider(options)
+    const getAccessKeyStatus = provider.getAccessKeyStatus.bind(provider)
+    provider.getAccessKeyStatus = async (input) => {
+      statusChecks++
+      return getAccessKeyStatus(input)
+    }
+    return provider
+  }
+  const config = { wallet: { type: 'tempo', storagePath } }
+
+  assert.equal(await enablePaymentAwareFetch(config, { providerFactory }), true)
+  assert.equal(await enablePaymentAwareFetch(config, { providerFactory }), true)
+  assert.equal(statusChecks, 1)
+})
+
 for (const [network, chain] of Object.entries({ mainnet: tempo, testnet: tempoModerato })) {
   test(`authorizes and hydrates a scoped ${network} access key`, async () => {
     const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-setup-'))
@@ -568,6 +634,14 @@ function createTestTempoProviderWithFailedTestnetPublication(options) {
     return request(input, requestOptions)
   }
 
+  return provider
+}
+
+function createTestTempoProviderWithUnavailableStatus(options) {
+  const provider = createTestTempoProvider(options)
+  provider.getAccessKeyStatus = async () => {
+    throw new Error('RPC unavailable.')
+  }
   return provider
 }
 

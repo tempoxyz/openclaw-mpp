@@ -24,13 +24,6 @@ type TempoWalletConfig = {
   storagePath?: string
 }
 type WalletSource = {
-  cacheKey: {
-    source: 'tempo'
-    accessKey?: `0x${string}`
-    chainId?: number
-    privateKey?: `0x${string}`
-    storagePath?: string
-  }
   parameters: Partial<TempoParameters>
 }
 export type WalletStatus = {
@@ -115,12 +108,12 @@ export async function createMppx(
   options: TempoProviderOptions = {},
 ) {
   if (config.enabled === false) throw new Error('MPP is disabled.')
-  const source = await resolveWalletSource(config, options)
-  const key = JSON.stringify(source.cacheKey)
+  const key = mppxKey(config.wallet)
 
   if (cached?.key === key) return cached.client
   if (cached) closeMppx()
 
+  const source = await resolveWalletSource(config, options)
   const client = Mppx.create({
     methods: [tempo(source.parameters)],
   })
@@ -290,10 +283,6 @@ async function resolveWalletSource(
   const wallet = config.wallet
   if (wallet.privateKey)
     return {
-      cacheKey: {
-        privateKey: wallet.privateKey,
-        source: 'tempo',
-      },
       parameters: {
         account: privateKeyToAccount(wallet.privateKey),
       },
@@ -314,17 +303,13 @@ async function resolveWalletSource(
   const ready = statuses.find((status) => status.ready)
   if (!ready) {
     const failure = results.find((result) => result.status === 'rejected')
-    if (failure?.status === 'rejected') throw failure.reason
     throw new PaymentAccountUnavailableError(
-      statuses.find((status) => status.accessKey)?.message ?? statuses[0]!.message,
+      failure?.status === 'rejected'
+        ? formatError(failure.reason)
+        : statuses.find((status) => status.accessKey)?.message ?? statuses[0]!.message,
     )
   }
   return {
-    cacheKey: {
-      accessKey: wallet.accessKey,
-      source: 'tempo',
-      storagePath: wallet.storagePath ?? 'default',
-    },
     parameters: {
       account: provider.getAccount(),
       ...provider.getMppxParameters(wallet.accessKey ? { accessKey: wallet.accessKey } : {}),
@@ -515,6 +500,18 @@ function walletKey(wallet: TempoWalletConfig) {
     privateKey: wallet.privateKey,
     storagePath: wallet.storagePath ?? 'default',
   })
+}
+
+function mppxKey(wallet: TempoWalletConfig) {
+  return JSON.stringify(
+    wallet.privateKey
+      ? { privateKey: wallet.privateKey, source: 'tempo' }
+      : {
+          accessKey: wallet.accessKey,
+          source: 'tempo',
+          storagePath: wallet.storagePath ?? 'default',
+        },
+  )
 }
 
 function setupKey(wallet: TempoWalletConfig, network: TempoNetwork) {
