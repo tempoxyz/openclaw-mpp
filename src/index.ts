@@ -118,7 +118,7 @@ export default definePluginEntry({
       label: 'MPP fetch',
       description: 'Fetch an HTTP URL with MPP payment handling.',
       parameters: requestInitSchema,
-      async execute(_toolCallId, params, signal) {
+      async execute(_toolCallId, params, signal, onUpdate) {
         signal?.throwIfAborted()
         const input = readFetchInput(params)
         await enablePaymentAwareFetch(normalizeConfig(api.pluginConfig))
@@ -129,10 +129,8 @@ export default definePluginEntry({
           signal,
         })
 
-        const text = await response.text()
         const headers = Object.fromEntries(response.headers.entries())
-        const details = {
-          body: text,
+        const metadata = {
           headers,
           ok: response.ok,
           redirected: response.redirected,
@@ -141,8 +139,21 @@ export default definePluginEntry({
           type: response.type,
           url: response.url,
         }
+        const reader = response.body?.getReader()
+        const decoder = new TextDecoder()
+        let body = ''
 
-        return jsonToolResult(details)
+        if (reader)
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            body += decoder.decode(value, { stream: true })
+            onUpdate?.(jsonToolResult({ body, ...metadata }))
+          }
+
+        body += decoder.decode()
+
+        return jsonToolResult({ body, ...metadata })
       },
     })
 
