@@ -1,5 +1,11 @@
 # openclaw-mpp
 
+## 0.2.4
+
+### Patch Changes
+
+- 0fa2401: Returned generic fetch response data from the `mpp_fetch` tool.
+
 ## 0.2.3
 
 ### Patch Changes
