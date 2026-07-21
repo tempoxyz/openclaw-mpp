@@ -196,10 +196,10 @@ export async function setupWallet(
   const network = options.network ?? 'mainnet'
   const provider = await createTempoProvider(wallet, options, tempoNetworks[network].id)
   const status = await getTempoWalletStatus(provider, wallet, network)
+  if (status.accessKey && status.publication === 'pending')
+    return publishTempoAccessKey(provider, wallet, network, status)
   if (wallet.accessKey) {
     if (status.ready) return status
-    if (status.accessKey && status.publication === 'pending')
-      return publishTempoAccessKey(provider, wallet, network, status)
     throw new Error(
       'Configured Tempo Wallet access key is not available locally. Remove wallet.accessKey to create a new key.',
     )

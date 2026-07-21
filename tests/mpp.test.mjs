@@ -438,6 +438,50 @@ test('keeps a ready network usable when another publication fails', async () => 
   assert.equal(Number(BigInt(publishRequests[0].params[0].chainId)), tempoModerato.id)
 })
 
+test('resumes a pending access key publication during wallet setup', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-wallet-'))
+  const storagePath = join(storageDir, 'wallet.json')
+  await writeWalletStore(storagePath, {
+    accessKeys: [
+      {
+        access: rootA,
+        address: accessKeyA,
+        chainId: tempo.id,
+        keyAuthorization: {},
+        keyType: 'secp256k1',
+        privateKey: accessPrivateKeyA,
+      },
+    ],
+    accounts: [{ address: rootA }],
+    activeAccount: 0,
+    chainId: tempo.id,
+  })
+  let authorizationRequests = 0
+  const providerFactory = (options) => {
+    const provider = createTestTempoProvider(options)
+    const request = provider.request.bind(provider)
+    provider.request = async (input, requestOptions) => {
+      if (input.method === 'wallet_authorizeAccessKey') {
+        authorizationRequests++
+        throw new Error('Unexpected access key authorization.')
+      }
+      return request(input, requestOptions)
+    }
+    return provider
+  }
+
+  const status = await setupWallet(
+    { wallet: { type: 'tempo', storagePath } },
+    { providerFactory },
+  )
+
+  assert.equal(status.ready, true)
+  assert.equal(status.accessKey, accessKeyA)
+  assert.equal(status.publication, 'published')
+  assert.equal(authorizationRequests, 0)
+  assert.equal(publishRequests.length, 1)
+})
+
 test('ignores expired Tempo Wallet access keys', async () => {
   const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-wallet-'))
   const storagePath = join(storageDir, 'wallet.json')
