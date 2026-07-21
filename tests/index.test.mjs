@@ -42,3 +42,53 @@ test('mpp_fetch returns the fetch response to the agent', async () => {
   })
   assert.equal(result.content[0].text, JSON.stringify(result.details))
 })
+
+test('mpp_fetch streams response body updates', async () => {
+  let mppFetch
+  plugin.register({
+    pluginConfig: { enabled: false },
+    registerCli() {},
+    registerTool(tool) {
+      if (tool.name === 'mpp_fetch') mppFetch = tool
+    },
+    registrationMode: 'tools',
+  })
+  const encoder = new TextEncoder()
+  let finish
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode('first'))
+          finish = () => {
+            controller.enqueue(encoder.encode(' second'))
+            controller.close()
+          }
+        },
+      }),
+      { headers: { 'content-type': 'text/event-stream' } },
+    )
+  const updates = []
+  let resolveFirstUpdate
+  const firstUpdate = new Promise((resolve) => {
+    resolveFirstUpdate = resolve
+  })
+
+  const execution = mppFetch.execute(
+    'call',
+    { url: 'https://example.com/events' },
+    undefined,
+    (update) => {
+      updates.push(update)
+      resolveFirstUpdate(update)
+    },
+  )
+  const partial = await firstUpdate
+
+  assert.equal(partial.details.body, 'first')
+  finish()
+
+  const result = await execution
+  assert.equal(result.details.body, 'first second')
+  assert.equal(updates.at(-1).details.body, 'first second')
+})
