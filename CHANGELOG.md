@@ -1,5 +1,12 @@
 # openclaw-mpp
 
+## 0.2.2
+
+### Patch Changes
+
+- 08ca272: Allow free HTTP requests to run without a configured payment account while leaving paid Challenges untouched.
+- b410507: Make wallet status chain-aware, default status to mainnet, and publish newly authorized access keys before reporting them ready.
+
 ## 0.2.1
 
 ### Patch Changes
