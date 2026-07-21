@@ -70,6 +70,8 @@ export function registerCli(api: OpenClawPluginApi) {
 
 function printStatus(status: Awaited<ReturnType<typeof getWalletStatus>>) {
   console.log(status.message)
+  console.log(`Network: ${status.network} (${status.chainId})`)
   if (status.account) console.log(`Account: ${status.account}`)
   if (status.accessKey) console.log(`Access key: ${status.accessKey}`)
+  if (status.publication) console.log(`Publication: ${status.publication}`)
 }
