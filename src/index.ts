@@ -131,16 +131,18 @@ export default definePluginEntry({
 
         const text = await response.text()
         const headers = Object.fromEntries(response.headers.entries())
-
-        return {
-          content: [{ type: 'text', text }],
-          details: {
-            body: text,
-            headers,
-            status: response.status,
-            url: response.url,
-          },
+        const details = {
+          body: text,
+          headers,
+          ok: response.ok,
+          redirected: response.redirected,
+          status: response.status,
+          statusText: response.statusText,
+          type: response.type,
+          url: response.url,
         }
+
+        return jsonToolResult(details)
       },
     })
 
