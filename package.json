@@ -1,6 +1,6 @@
 {
   "name": "openclaw-mpp",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Let OpenClaw call pay-per-use APIs using MPP with automatic HTTP 402 payments and a capped Tempo Wallet access key.",
   "keywords": [
     "agent-payments",

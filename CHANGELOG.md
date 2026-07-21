@@ -1,5 +1,11 @@
 # openclaw-mpp
 
+## 0.2.3
+
+### Patch Changes
+
+- ebc4cff: Keep free requests available when wallet status checks fail and avoid repeating wallet checks for a cached payment client.
+
 ## 0.2.2
 
 ### Patch Changes
