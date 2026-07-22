@@ -1,5 +1,12 @@
 # openclaw-mpp
 
+## 0.2.5
+
+### Patch Changes
+
+- e71297c: Stream partial response bodies from the `mpp_fetch` tool.
+- 9cbeffe: Resume pending Tempo Wallet access key publication during setup.
+
 ## 0.2.4
 
 ### Patch Changes
