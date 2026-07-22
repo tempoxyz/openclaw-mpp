@@ -1,6 +1,6 @@
 import { Provider as TempoProvider, Storage as TempoStorage } from 'accounts/cli'
 import type { Store as TempoStore } from 'accounts'
-import { Mppx, tempo } from 'mppx/client'
+import { Mppx, tempo, Transport } from 'mppx/client'
 import { toHex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { Actions } from 'viem/tempo'
@@ -44,6 +44,9 @@ export type WalletStatus = {
 
 type MppxClient = ReturnType<typeof Mppx.create>
 type TempoParameters = NonNullable<Parameters<typeof tempo>[0]>
+type PaymentFetch = typeof globalThis.fetch & {
+  [originalFetch]?: typeof globalThis.fetch
+}
 type TempoProviderInstance = Pick<
   TempoProvider.create.ReturnType,
   'getAccessKeyStatus' | 'getAccount' | 'getMppxParameters' | 'request'
@@ -81,8 +84,9 @@ export type WalletSetupOptions = TempoProviderOptions & {
 }
 
 const defaultAccessKeyTtlSeconds = 7 * 24 * 60 * 60
+const originalFetch = Symbol('mpp.openclaw.originalFetch')
 
-let cached: { client: MppxClient; key: string } | undefined
+let cached: { client: MppxClient; fetch: PaymentFetch; key: string } | undefined
 
 class PaymentAccountUnavailableError extends Error {}
 
@@ -114,12 +118,73 @@ export async function createMppx(
   if (cached) closeMppx()
 
   const source = await resolveWalletSource(config, options)
+  const rawFetch = unwrapFetch(globalThis.fetch)
   const client = Mppx.create({
+    fetch: rawFetch,
     methods: [tempo(source.parameters)],
+    polyfill: false,
   })
+  const sessionFetches = new Map<string, typeof globalThis.fetch>()
+  const paymentFetch = createPaymentFetch({
+    acceptPayment: client.methods.map((method) => `${method.name}/${method.intent}`).join(', '),
+    fetch: client.fetch,
+    getSessionFetch(input) {
+      const origin = new URL(input instanceof Request ? input.url : input).origin
+      const existing = sessionFetches.get(origin)
+      if (existing) return existing
 
-  cached = { client, key }
+      const manager = tempo.session.manager({ ...source.parameters, fetch: rawFetch })
+      let pending = Promise.resolve()
+      const fetch: typeof globalThis.fetch = (input, init) => {
+        const response = pending.then(() => manager.fetch(input, init))
+        pending = response.then(
+          () => undefined,
+          () => undefined,
+        )
+        return response
+      }
+      sessionFetches.set(origin, fetch)
+      return fetch
+    },
+    rawFetch,
+  }) as PaymentFetch
+  paymentFetch[originalFetch] = rawFetch
+  globalThis.fetch = paymentFetch
+
+  cached = { client, fetch: paymentFetch, key }
   return client
+}
+
+export function createPaymentFetch(parameters: {
+  acceptPayment: string
+  fetch: typeof globalThis.fetch
+  getSessionFetch: (input: RequestInfo | URL) => typeof globalThis.fetch
+  rawFetch: typeof globalThis.fetch
+}) {
+  const transport = Transport.http()
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    let request = new Request(input, init)
+    if (parameters.acceptPayment && !request.headers.has('accept-payment')) {
+      const headers = new Headers(request.headers)
+      headers.set('accept-payment', parameters.acceptPayment)
+      request = new Request(request, { headers })
+    }
+
+    const response = await parameters.rawFetch(request.clone())
+    const transportRequest = await toTransportRequest(request, response)
+    if (!(await transport.isPaymentRequired(response, transportRequest))) return response
+
+    const challenges = transport.getChallenges
+      ? await transport.getChallenges(response, transportRequest)
+      : [await transport.getChallenge(response, transportRequest)]
+    const challenge = challenges.find(
+      (challenge) =>
+        challenge.method === 'tempo' &&
+        (challenge.intent === 'charge' || challenge.intent === 'session'),
+    )
+    if (challenge?.intent === 'session') return parameters.getSessionFetch(request)(request)
+    return parameters.fetch(request)
+  }
 }
 
 export async function enablePaymentAwareFetch(
@@ -142,8 +207,9 @@ export async function enablePaymentAwareFetch(
 
 export function closeMppx() {
   if (!cached) return
+  if (globalThis.fetch === cached.fetch)
+    globalThis.fetch = cached.fetch[originalFetch] ?? globalThis.fetch
   cached = undefined
-  Mppx.restore()
 }
 
 export async function getWalletStatus(
@@ -492,6 +558,26 @@ function readAddress(value: unknown): `0x${string}` | undefined {
 
 function sameAddress(a: string, b: string) {
   return a.toLowerCase() === b.toLowerCase()
+}
+
+function unwrapFetch(fetch: typeof globalThis.fetch) {
+  return (fetch as PaymentFetch)[originalFetch] ?? fetch
+}
+
+async function toTransportRequest(request: Request, response: Response): Promise<RequestInit> {
+  const transportRequest: RequestInit = {
+    headers: request.headers,
+    method: request.method,
+  }
+  if (response.status === 402 || !request.body || !isMcpRequest(request.headers))
+    return transportRequest
+  return { ...transportRequest, body: await request.clone().text() }
+}
+
+function isMcpRequest(headers: Headers) {
+  if (headers.has('mcp-method')) return true
+  const accept = headers.get('accept')?.toLowerCase() ?? ''
+  return accept.includes('application/json') && accept.includes('text/event-stream')
 }
 
 function walletKey(wallet: TempoWalletConfig) {

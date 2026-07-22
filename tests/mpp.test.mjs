@@ -13,6 +13,7 @@ import {
   beginWalletSetup,
   closeMppx,
   createMppx,
+  createPaymentFetch,
   enablePaymentAwareFetch,
   getWalletStatus,
   normalizeConfig,
@@ -626,8 +627,120 @@ test('passes through free SSE responses', async () => {
   assert.equal(await response.text(), 'event: update\nid: 7\nretry: 1000\ndata: hello\n\n')
 })
 
+test('routes HTTP session Challenges through the managed session fetch', async () => {
+  const calls = []
+  const paymentFetch = createPaymentFetch({
+    acceptPayment: 'tempo/charge, tempo/session',
+    fetch: async () => {
+      calls.push('charge')
+      return new Response('charge')
+    },
+    getSessionFetch: () => async (input) => {
+      calls.push({ body: await new Request(input).text(), route: 'session' })
+      return new Response('session')
+    },
+    rawFetch: async () => sessionChallengeResponse(),
+  })
+
+  const response = await paymentFetch('https://api.example.com/session', {
+    body: 'hello',
+    method: 'POST',
+  })
+
+  assert.equal(await response.text(), 'session')
+  assert.deepEqual(calls, [{ body: 'hello', route: 'session' }])
+})
+
+test('keeps HTTP charge Challenges on the Mppx fetch', async () => {
+  const calls = []
+  const paymentFetch = createPaymentFetch({
+    acceptPayment: 'tempo/charge, tempo/session',
+    fetch: async () => {
+      calls.push('charge')
+      return new Response('charge')
+    },
+    getSessionFetch: () => async () => {
+      calls.push('session')
+      return new Response('session')
+    },
+    rawFetch: async () => sessionChallengeResponse('charge'),
+  })
+
+  const response = await paymentFetch('https://api.example.com/charge')
+
+  assert.equal(await response.text(), 'charge')
+  assert.deepEqual(calls, ['charge'])
+})
+
+test('routes MCP session Challenges through the managed session fetch', async () => {
+  const calls = []
+  const challenge = tempoChallenge('session')
+  const paymentFetch = createPaymentFetch({
+    acceptPayment: 'tempo/charge, tempo/session',
+    fetch: async () => {
+      calls.push('charge')
+      return new Response('charge')
+    },
+    getSessionFetch: () => async () => {
+      calls.push('session')
+      return new Response('session')
+    },
+    rawFetch: async () =>
+      Response.json({
+        error: {
+          code: -32042,
+          data: { challenges: [challenge] },
+          message: 'Payment required',
+        },
+        id: 1,
+        jsonrpc: '2.0',
+      }),
+  })
+
+  const response = await paymentFetch('https://api.example.com/mcp', {
+    body: JSON.stringify({ id: 1, jsonrpc: '2.0', method: 'tools/call', params: {} }),
+    headers: { accept: 'application/json, text/event-stream' },
+    method: 'POST',
+  })
+
+  assert.equal(await response.text(), 'session')
+  assert.deepEqual(calls, ['session'])
+})
+
 function requestHeaders(input, init) {
   return new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined))
+}
+
+function sessionChallengeResponse(intent = 'session') {
+  const challenge = tempoChallenge(intent)
+  const request = Buffer.from(JSON.stringify(challenge.request)).toString('base64url')
+  return new Response('payment required', {
+    headers: {
+      'www-authenticate': `Payment id="${challenge.id}", realm="${challenge.realm}", method="tempo", intent="${intent}", request="${request}"`,
+    },
+    status: 402,
+  })
+}
+
+function tempoChallenge(intent) {
+  return {
+    id: 'test-challenge',
+    intent,
+    method: 'tempo',
+    realm: 'api.example.com',
+    request: {
+      amount: '10000',
+      currency: '0x20c0000000000000000000000000000000000000',
+      methodDetails: {
+        chainId: 42431,
+        escrowContract: '0x4d50500000000000000000000000000000000000',
+        feePayer: true,
+        sessionProtocol: 'v2',
+      },
+      recipient: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+      unitType: 'request',
+    },
+  }
 }
 
 function createTestTempoProvider(options) {
