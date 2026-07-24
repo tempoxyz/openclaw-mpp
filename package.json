@@ -52,11 +52,11 @@
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
-    "@types/node": "^24.0.10",
+    "@types/node": "^26.1.1",
     "openclaw": "2026.7.1-2",
-    "ox": "~0.14.30",
+    "ox": "~1.0.5",
     "oxlint": "^1.72.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "openclaw": {
     "extensions": [
