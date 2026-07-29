@@ -1,5 +1,13 @@
 # openclaw-mpp
 
+## 0.2.5
+
+### Patch Changes
+
+- e71297c: Stream partial response bodies from the `mpp_fetch` tool.
+- 9cbeffe: Resume pending Tempo Wallet access key publication during setup.
+- ac7347b: Require payment dependency versions that support requested-chain routing, sponsored access-key gas estimation, and retrying unaccepted session opens.
+
 ## 0.2.4
 
 ### Patch Changes
