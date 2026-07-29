@@ -44,7 +44,7 @@ openclaw plugins install npm:openclaw-mpp
 Send this prompt through OpenClaw:
 
 ```text
-Use mpp_fetch exactly once to POST https://exa.mpp.tempo.xyz/search with header content-type: application/json and body {"query":"What is Tempo blockchain?","numResults":2}. Report the HTTP status, payment receipt, and result titles and URLs.
+Use mpp_fetch to POST {"query":"What is the Tempo blockchain?"} as JSON to https://exa.mpp.tempo.xyz/search.
 ```
 
 This request spends USDC.e on Tempo mainnet. A successful request returns HTTP 200, includes
