@@ -255,6 +255,18 @@ test('does not recheck wallet status for a cached client', async () => {
   assert.equal(statusChecks, 1)
 })
 
+test('recreates a private-key client when its storage path changes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'openclaw-mpp-'))
+  const firstClient = await createMppx({
+    wallet: { privateKey: key, storagePath: join(directory, 'first.json'), type: 'tempo' },
+  })
+  const secondClient = await createMppx({
+    wallet: { privateKey: key, storagePath: join(directory, 'second.json'), type: 'tempo' },
+  })
+
+  assert.notStrictEqual(firstClient, secondClient)
+})
+
 for (const [network, chain] of Object.entries({ mainnet: tempo, testnet: tempoModerato })) {
   test(`authorizes and hydrates a scoped ${network} access key`, async () => {
     const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-setup-'))
@@ -567,12 +579,7 @@ test('installs payment-aware fetch', async () => {
   }
   globalThis.fetch = rawFetch
 
-  await createMppx({
-    wallet: {
-      privateKey: key,
-      type: 'tempo',
-    },
-  })
+  await createMppx({ wallet: { privateKey: key, type: 'tempo' } })
 
   const response = await fetch('https://pay.example.com/paid')
 
