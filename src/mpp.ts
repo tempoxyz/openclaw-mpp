@@ -1,6 +1,6 @@
 import { Provider as TempoProvider, Storage as TempoStorage } from 'accounts/cli'
 import type { Store as TempoStore } from 'accounts'
-import { Mppx, tempo } from 'mppx/client'
+import { Mppx, createJsonChannelStore, tempo } from 'mppx/client'
 import { toHex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { Actions } from 'viem/tempo'
@@ -24,6 +24,7 @@ type TempoWalletConfig = {
   storagePath?: string
 }
 type WalletSource = {
+  payer: `0x${string}`
   parameters: Partial<TempoParameters>
 }
 export type WalletStatus = {
@@ -108,14 +109,19 @@ export async function createMppx(
   options: TempoProviderOptions = {},
 ) {
   if (config.enabled === false) throw new Error('MPP is disabled.')
-  const key = mppxKey(config.wallet)
+  const key = walletKey(config.wallet)
 
   if (cached?.key === key) return cached.client
   if (cached) closeMppx()
 
   const source = await resolveWalletSource(config, options)
   const client = Mppx.create({
-    methods: [tempo(source.parameters)],
+    methods: [
+      tempo({
+        ...source.parameters,
+        channelStore: persistentChannelStore(config.wallet, source.payer),
+      }),
+    ],
   })
 
   cached = { client, key }
@@ -281,12 +287,15 @@ async function resolveWalletSource(
   options: TempoProviderOptions = {},
 ): Promise<WalletSource> {
   const wallet = config.wallet
-  if (wallet.privateKey)
+  if (wallet.privateKey) {
+    const account = privateKeyToAccount(wallet.privateKey)
     return {
+      payer: account.address,
       parameters: {
-        account: privateKeyToAccount(wallet.privateKey),
+        account,
       },
     }
+  }
 
   const provider = await createTempoProvider(wallet, options)
   const results = await Promise.allSettled(
@@ -309,9 +318,11 @@ async function resolveWalletSource(
         : statuses.find((status) => status.accessKey)?.message ?? statuses[0]!.message,
     )
   }
+  const account = provider.getAccount()
   return {
+    payer: account.address,
     parameters: {
-      account: provider.getAccount(),
+      account,
       ...provider.getMppxParameters(wallet.accessKey ? { accessKey: wallet.accessKey } : {}),
     },
   }
@@ -502,20 +513,20 @@ function walletKey(wallet: TempoWalletConfig) {
   })
 }
 
-function mppxKey(wallet: TempoWalletConfig) {
-  return JSON.stringify(
-    wallet.privateKey
-      ? { privateKey: wallet.privateKey, source: 'tempo' }
-      : {
-          accessKey: wallet.accessKey,
-          source: 'tempo',
-          storagePath: wallet.storagePath ?? 'default',
-        },
-  )
-}
-
 function setupKey(wallet: TempoWalletConfig, network: TempoNetwork) {
   return `${walletKey(wallet)}:${network}`
+}
+
+function persistentChannelStore(wallet: TempoWalletConfig, payer: `0x${string}`) {
+  const storage = TempoStorage.filesystem({
+    key: `openclaw-mpp:${payer.toLowerCase()}`,
+    path: wallet.storagePath,
+  })
+  return createJsonChannelStore({
+    delete: storage.removeItem,
+    get: async (key) => (await storage.getItem<string>(key)) ?? undefined,
+    set: storage.setItem,
+  })
 }
 
 function formatError(error: unknown) {
