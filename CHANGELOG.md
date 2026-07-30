@@ -1,5 +1,11 @@
 # openclaw-mpp
 
+## 0.2.6
+
+### Patch Changes
+
+- fec0dc2: Persist reusable Tempo session channels across gateway restarts.
+
 ## 0.2.5
 
 ### Patch Changes
