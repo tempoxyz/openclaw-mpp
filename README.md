@@ -44,12 +44,13 @@ openclaw plugins install npm:openclaw-mpp
 Send this prompt through OpenClaw:
 
 ```text
-Use mpp_fetch to GET https://mpp.dev/api/ping/paid and report the HTTP status and payment receipt.
+Use mpp_fetch to POST {"query":"What is the Tempo blockchain?"} as JSON to https://exa.mpp.tempo.xyz/search.
 ```
 
-This test spends real USDC. A successful request returns HTTP 200 and includes the payment
-receipt in the tool result. If OpenClaw selects its built-in `web_fetch` tool instead,
-explicitly ask it to use `mpp_fetch`; built-in `web_fetch` is not payment-aware.
+This request spends USDC.e on Tempo mainnet. A successful request returns HTTP 200, includes
+the payment receipt, and contains live Exa search results. If OpenClaw selects its built-in
+`web_fetch` tool instead, explicitly ask it to use `mpp_fetch`; built-in `web_fetch` is not
+payment-aware.
 
 ## Connect a wallet
 
