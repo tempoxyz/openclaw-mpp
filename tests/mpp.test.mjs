@@ -6,8 +6,7 @@ import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
 import { Provider as TempoProvider } from 'accounts/cli'
 import { Handler } from 'accounts/server'
-import { KeyAuthorization } from 'ox/tempo'
-import { Account } from 'viem/tempo'
+import { Account, Formatters } from 'viem/tempo'
 import { tempo, tempoModerato } from 'viem/tempo/chains'
 import {
   beginWalletSetup,
@@ -730,7 +729,10 @@ async function approveDeviceCode(setupUrl, serverUrl) {
       ...(limits ? { limits } : {}),
     },
   )
-  const keyAuthorization = KeyAuthorization.toRpc(signed)
+  const keyAuthorization = Formatters.formatTransactionRequest({
+    keyAuthorization: signed,
+    type: 'tempo',
+  }).keyAuthorization
   const authorized = await originalFetch(`${serverUrl}/cli-auth`, {
     body: JSON.stringify({
       accountAddress: root.address,
