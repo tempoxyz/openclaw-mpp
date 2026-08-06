@@ -2,12 +2,15 @@ import {
   buildJsonPluginConfigSchema,
   definePluginEntry,
 } from 'openclaw/plugin-sdk/plugin-entry'
+import { fetchWithRuntimeDispatcherOrMockedGlobal } from 'openclaw/plugin-sdk/runtime-fetch'
+import { fetchWithSsrFGuard } from 'openclaw/plugin-sdk/ssrf-runtime'
 import { Type, type Static } from 'typebox'
 import { registerCli } from './cli.js'
 import {
   beginWalletSetup,
   closeMppx,
   enablePaymentAwareFetch,
+  getPaymentAwareFetch,
   getWalletStatus,
   normalizeConfig,
 } from './mpp.js'
@@ -102,7 +105,9 @@ export default definePluginEntry({
         id: 'mpp',
         async start() {
           try {
-            const enabled = await enablePaymentAwareFetch(normalizeConfig(api.pluginConfig))
+            const enabled = await enablePaymentAwareFetch(normalizeConfig(api.pluginConfig), {
+              fetch: fetchWithRuntimeDispatcherOrMockedGlobal,
+            })
             if (enabled) api.logger.info('MPP payment-aware fetch initialized.')
             else api.logger.info('MPP free fetch initialized; connect a wallet to pay Challenges.')
           } catch (error) {
@@ -116,44 +121,58 @@ export default definePluginEntry({
     api.registerTool({
       name: 'mpp_fetch',
       label: 'MPP fetch',
-      description: 'Fetch an HTTP URL with MPP payment handling.',
+      description:
+        'Fetch an HTTP API safely with automatic MPP payment handling. Use for pay-per-use endpoints that may return HTTP 402.',
       parameters: requestInitSchema,
       async execute(_toolCallId, params, signal, onUpdate) {
         signal?.throwIfAborted()
         const input = readFetchInput(params)
-        await enablePaymentAwareFetch(normalizeConfig(api.pluginConfig))
-        const response = await fetch(input.url, {
-          body: input.body,
-          headers: input.headers,
-          method: input.method,
-          signal,
+        const paymentFetch = await getPaymentAwareFetch(normalizeConfig(api.pluginConfig), {
+          fetch: fetchWithRuntimeDispatcherOrMockedGlobal,
+          polyfill: false,
         })
-
-        const headers = Object.fromEntries(response.headers.entries())
-        const metadata = {
-          headers,
-          ok: response.ok,
-          redirected: response.redirected,
-          status: response.status,
-          statusText: response.statusText,
-          type: response.type,
-          url: response.url,
-        }
-        const reader = response.body?.getReader()
-        const decoder = new TextDecoder()
-        let body = ''
-
-        if (reader)
-          while (true) {
-            const { done, value } = await reader.read()
-            if (done) break
-            body += decoder.decode(value, { stream: true })
-            onUpdate?.(jsonToolResult({ body, ...metadata }))
+        const { response, release } = await fetchWithSsrFGuard({
+          auditContext: 'mpp_fetch',
+          fetchImpl: paymentFetch,
+          init: {
+            body: input.body,
+            headers: input.headers,
+            method: input.method,
+          },
+          maxRedirects: 3,
+          signal,
+          timeoutMs: 30_000,
+          url: input.url,
+        })
+        try {
+          const headers = Object.fromEntries(response.headers.entries())
+          const metadata = {
+            headers,
+            ok: response.ok,
+            redirected: response.redirected,
+            status: response.status,
+            statusText: response.statusText,
+            type: response.type,
+            url: response.url,
           }
+          const reader = response.body?.getReader()
+          const decoder = new TextDecoder()
+          let body = ''
 
-        body += decoder.decode()
+          if (reader)
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              body += decoder.decode(value, { stream: true })
+              onUpdate?.(jsonToolResult({ body, ...metadata }))
+            }
 
-        return jsonToolResult({ body, ...metadata })
+          body += decoder.decode()
+
+          return jsonToolResult({ body, ...metadata })
+        } finally {
+          await release()
+        }
       },
     })
 
@@ -182,7 +201,10 @@ export default definePluginEntry({
         const config = normalizeConfig(api.pluginConfig)
         const status = await beginWalletSetup(
           config,
-          resolveSetupPolicy(readWalletSetupInput(params)),
+          {
+            ...resolveSetupPolicy(readWalletSetupInput(params)),
+            fetch: fetchWithRuntimeDispatcherOrMockedGlobal,
+          },
         )
         return jsonToolResult(status)
       },
