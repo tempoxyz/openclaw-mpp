@@ -72,6 +72,8 @@ type TempoProviderOptions = Pick<
   TempoProvider.create.Options,
   'host' | 'open' | 'pollIntervalMs' | 'timeoutMs'
 > & {
+  fetch?: typeof globalThis.fetch
+  polyfill?: boolean
   providerFactory?: typeof TempoProvider.create
 }
 export type WalletSetupOptions = TempoProviderOptions & {
@@ -116,12 +118,14 @@ export async function createMppx(
 
   const source = await resolveWalletSource(config, options)
   const client = Mppx.create({
+    ...(options.fetch ? { fetch: options.fetch } : {}),
     methods: [
       tempo({
         ...source.parameters,
         channelStore: persistentChannelStore(config.wallet, source.payer),
       }),
     ],
+    ...(options.polyfill !== undefined ? { polyfill: options.polyfill } : {}),
   })
 
   cached = { client, key }
@@ -144,6 +148,15 @@ export async function enablePaymentAwareFetch(
     closeMppx()
     return false
   }
+}
+
+export async function getPaymentAwareFetch(
+  config: PluginConfig,
+  options: TempoProviderOptions = {},
+): Promise<typeof globalThis.fetch> {
+  const enabled = await enablePaymentAwareFetch(config, options)
+  if (enabled && cached) return cached.client.fetch
+  return options.fetch ?? globalThis.fetch.bind(globalThis)
 }
 
 export function closeMppx() {
@@ -259,7 +272,7 @@ export async function beginWalletSetup(
   })
   void completion
     .then(async (result) => {
-      if (config.enabled !== false && result.ready) await createMppx(config)
+      if (config.enabled !== false && result.ready) await createMppx(config, options)
       if (pendingSetup?.key === key) pendingSetup = undefined
     })
     .catch((error) => {
