@@ -48,7 +48,7 @@ export function registerCli(api: OpenClawPluginApi) {
               showDeposit: options.deposit,
             }),
             open(url) {
-              console.log(`\nOpen Tempo Wallet to approve this access key:\n\n${url}\n`)
+              writeSetupUrl(url)
             },
           })
           printStatus(status)
@@ -66,6 +66,14 @@ export function registerCli(api: OpenClawPluginApi) {
       ],
     },
   )
+}
+
+export function writeSetupUrl(
+  url: string,
+  output: { write(value: string): unknown } = process.stdout,
+) {
+  // OpenClaw redacts URL query values from console output, including the device code.
+  output.write(`\nOpen Tempo Wallet to approve this access key:\n\n${url}\n\n`)
 }
 
 function printStatus(status: Awaited<ReturnType<typeof getWalletStatus>>) {
