@@ -6,8 +6,8 @@
 
 Give OpenClaw access to pay-per-use APIs without managing a separate API key or
 subscription for every service. The plugin installs a payment-aware fetch in the Gateway
-so HTTP and MCP calls can handle MPP HTTP 402 charges and streaming sessions using a
-capped, expiring Tempo Wallet access key.
+so HTTP and fetch-backed MCP calls can handle MPP HTTP 402 charges and streaming sessions
+using a capped, expiring Tempo Wallet access key.
 
 Maintained by [Tempo](https://tempo.xyz), the team behind
 [MPP](https://mpp.dev).
