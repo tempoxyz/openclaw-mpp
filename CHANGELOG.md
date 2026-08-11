@@ -1,5 +1,12 @@
 # openclaw-mpp
 
+## 0.2.7
+
+### Patch Changes
+
+- 6a258d2: Route `mpp_fetch` through OpenClaw's guarded fetch transport.
+- c8bcb1d: Print the complete Tempo Wallet approval URL during CLI setup.
+
 ## 0.2.6
 
 ### Patch Changes
