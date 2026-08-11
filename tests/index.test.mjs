@@ -160,3 +160,25 @@ test('mpp_fetch streams response body updates', async () => {
   assert.equal(result.details.body, 'first second')
   assert.equal(updates.at(-1).details.body, 'first second')
 })
+
+test('mpp_fetch leaves stream lifetime to the caller', async () => {
+  let mppFetch
+  plugin.register({
+    pluginConfig: { enabled: false },
+    registerCli() {},
+    registerTool(tool) {
+      if (tool.name === 'mpp_fetch') mppFetch = tool
+    },
+    registrationMode: 'tools',
+  })
+  let fetchSignal
+  globalThis.fetch = mock.fn(async (_input, init) => {
+    fetchSignal = init?.signal
+    return new Response('stream complete')
+  })
+
+  const result = await mppFetch.execute('call', { url: 'https://1.1.1.1/events' })
+
+  assert.equal(result.details.body, 'stream complete')
+  assert.equal(fetchSignal, undefined)
+})

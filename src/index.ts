@@ -141,7 +141,6 @@ export default definePluginEntry({
           },
           maxRedirects: 3,
           signal,
-          timeoutMs: 30_000,
           url: input.url,
         })
         try {
