@@ -1,7 +1,7 @@
 # MPP for OpenClaw
 
 [![npm](https://img.shields.io/npm/v/openclaw-mpp)](https://www.npmjs.com/package/openclaw-mpp)
-[![CI](https://github.com/tempoxyz/openclaw-mpp/actions/workflows/ci.yml/badge.svg)](https://github.com/tempoxyz/openclaw-mpp/actions/workflows/ci.yml)
+[![CI](https://github.com/tempoxyz/openclaw-mpp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/tempoxyz/openclaw-mpp/actions/workflows/ci.yml)
 [![License](https://img.shields.io/npm/l/openclaw-mpp)](./LICENSE)
 
 Give OpenClaw access to pay-per-use APIs without managing a separate API key or
