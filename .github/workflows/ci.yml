@@ -133,11 +133,13 @@ jobs:
     name: Changesets
     if: github.event_name == 'push' && github.repository == 'tempoxyz/openclaw-mpp'
     needs: ci-gate
+    # The version PR is opened with a short-lived GitHub App token minted via
+    # the github-sts action (authorized by .github/sts/changesets.sts.yaml);
+    # the built-in GITHUB_TOKEN is not allowed to create pull requests.
     permissions:
       actions: write
       contents: write
       id-token: write
-      pull-requests: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -155,6 +157,11 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Fetch GitHub token via STS
+        id: sts
+        uses: tempoxyz/gh-actions/actions/github-sts@183a02178c660ce295e9a262edc5857cb7135f06 # main
+        with:
+          policy: changesets
       - name: PR or publish
         id: changesets
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
@@ -164,7 +171,7 @@ jobs:
           publish: pnpm changeset:publish
           version: pnpm changeset:version
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.sts.outputs.token }}
       - name: Publish released version to ClawHub
         if: steps.changesets.outputs.published == 'true'
         env:
