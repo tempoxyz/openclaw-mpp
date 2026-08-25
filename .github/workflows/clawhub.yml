@@ -50,7 +50,7 @@ jobs:
           archive="$(find artifacts -maxdepth 1 -name '*.tgz' -type f -print -quit)"
           test -n "$archive"
           tar -tzf "$archive" | grep -qx 'package/dist/index.js'
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: openclaw-mpp-clawpack
           path: artifacts/*.tgz
