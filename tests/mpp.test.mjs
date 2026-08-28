@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
 import { Provider as TempoProvider } from 'accounts/cli'
 import { Handler } from 'accounts/server'
+import { Challenge } from 'mppx'
 import { Account, Formatters } from 'viem/tempo'
 import { tempo, tempoModerato } from 'viem/tempo/chains'
 import {
@@ -252,6 +253,58 @@ test('does not recheck wallet status for a cached client', async () => {
   assert.equal(await enablePaymentAwareFetch(config, { providerFactory }), true)
   assert.equal(await enablePaymentAwareFetch(config, { providerFactory }), true)
   assert.equal(statusChecks, 1)
+})
+
+test('browser wallet skips a MACH offer outside its access-key limit', async () => {
+  const storageDir = await mkdtemp(join(tmpdir(), 'openclaw-mpp-wallet-'))
+  const storagePath = join(storageDir, 'wallet.json')
+  const usdc = resolveSetupPolicy().limits[0].token
+  await writeWalletStore(storagePath, {
+    accessKeys: [
+      {
+        access: rootA,
+        address: accessKeyA,
+        chainId: tempo.id,
+        keyType: 'secp256k1',
+        limits: [{ limit: 10_000_000, token: usdc }],
+        privateKey: accessPrivateKeyA,
+      },
+    ],
+    accounts: [{ address: rootA }],
+    activeAccount: 0,
+    chainId: tempo.id,
+  })
+  const client = await createMppx(
+    { wallet: { type: 'tempo', storagePath } },
+    { polyfill: false, providerFactory: createTestTempoProvider },
+  )
+  const challenge = (id, currency) =>
+    Challenge.from({
+      id,
+      intent: 'charge',
+      method: 'tempo',
+      realm: 'api.example.com',
+      request: {
+        amount: '0',
+        currency,
+        methodDetails: { chainId: tempo.id },
+        recipient: rootB,
+      },
+    })
+  const headers = new Headers()
+  headers.append(
+    'www-authenticate',
+    Challenge.serialize(
+      challenge('mach', '0x20c000000000000000000000f37de3740ADec032'),
+    ),
+  )
+  headers.append('www-authenticate', Challenge.serialize(challenge('usdc', usdc)))
+
+  const payment = await client.preparePayment(
+    new Response('payment required', { headers, status: 402 }),
+  )
+
+  assert.equal(payment.challenge.request.currency, usdc)
 })
 
 test('recreates a private-key client when its storage path changes', async () => {
