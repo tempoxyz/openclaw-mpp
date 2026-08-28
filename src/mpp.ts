@@ -1,10 +1,14 @@
 import { Provider as TempoProvider, Storage as TempoStorage } from 'accounts/cli'
 import type { Store as TempoStore } from 'accounts'
 import { Mppx, createJsonChannelStore, tempo } from 'mppx/client'
-import { toHex } from 'viem'
+import { type Address, createClient, http, toHex } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { Actions } from 'viem/tempo'
 import { usdce } from 'viem/tokens'
+import {
+  type BalanceReader,
+  orderTempoChargeChallenges,
+} from './challenges.js'
 import {
   tempoChains,
   tempoNetworks,
@@ -24,6 +28,8 @@ type TempoWalletConfig = {
   storagePath?: string
 }
 type WalletSource = {
+  allowedTokens?: readonly Address[] | undefined
+  getBalance: BalanceReader
   payer: `0x${string}`
   parameters: Partial<TempoParameters>
 }
@@ -125,6 +131,11 @@ export async function createMppx(
         channelStore: persistentChannelStore(config.wallet, source.payer),
       }),
     ],
+    orderChallenges: (candidates) =>
+      orderTempoChargeChallenges(candidates, {
+        allowedTokens: source.allowedTokens,
+        getBalance: source.getBalance,
+      }),
     ...(options.polyfill !== undefined ? { polyfill: options.polyfill } : {}),
   })
 
@@ -303,6 +314,7 @@ async function resolveWalletSource(
   if (wallet.privateKey) {
     const account = privateKeyToAccount(wallet.privateKey)
     return {
+      getBalance: createBalanceReader(account.address),
       payer: account.address,
       parameters: {
         account,
@@ -332,12 +344,64 @@ async function resolveWalletSource(
     )
   }
   const account = provider.getAccount()
+  const accessKey = wallet.accessKey ?? ready.accessKey
+  const parameters = provider.getMppxParameters(accessKey ? { accessKey } : {})
   return {
+    allowedTokens: accessKey
+      ? accessKeyTokens(provider, account.address, ready.chainId!, accessKey)
+      : undefined,
+    getBalance: createBalanceReader(account.address, parameters.getClient),
     payer: account.address,
     parameters: {
       account,
-      ...provider.getMppxParameters(wallet.accessKey ? { accessKey: wallet.accessKey } : {}),
+      ...parameters,
     },
+  }
+}
+
+function accessKeyTokens(
+  provider: TempoProviderInstance,
+  account: Address,
+  chainId: number,
+  accessKey: Address,
+): readonly Address[] | undefined {
+  const key = provider.store
+    .getState()
+    .accessKeys.find(
+      (candidate) =>
+        candidate.chainId === chainId &&
+        sameAddress(candidate.access, account) &&
+        sameAddress(candidate.address, accessKey),
+    )
+  if (!key?.limits?.length) return undefined
+  return key.limits.filter(({ limit }) => limit > 0n).map(({ token }) => token)
+}
+
+function createBalanceReader(
+  account: Address,
+  getClient?: TempoParameters['getClient'],
+): BalanceReader {
+  const clients = new Map<number, ReturnType<typeof createClient>>()
+  return async ({ chainId, token }) => {
+    try {
+      const client = getClient
+        ? await getClient({ chainId })
+        : (clients.get(chainId) ?? (() => {
+            const chain = tempoChains.find((candidate) => candidate.id === chainId)
+            if (!chain) throw new Error(`Unsupported Tempo chain ${chainId}.`)
+            const created = createClient({ chain, transport: http() })
+            clients.set(chainId, created)
+            return created
+          })())
+      return (
+        await Actions.token.getBalance(client as never, {
+          account,
+          token,
+        })
+      ).amount
+    } catch {
+      return undefined
+    }
   }
 }
 
