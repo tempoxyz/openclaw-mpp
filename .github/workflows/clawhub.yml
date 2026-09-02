@@ -33,7 +33,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.source_ref || github.sha }}
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@6f436eb3a168279692739e8c0c9fdb52b94bfae7
         with:
           version: 11.0.8
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
