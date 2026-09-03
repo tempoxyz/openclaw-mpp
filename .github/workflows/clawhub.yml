@@ -59,11 +59,20 @@ jobs:
   publish:
     name: Publish package
     needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
-      actions: read
-      contents: read
-      id-token: write
-    uses: openclaw/clawhub/.github/workflows/package-publish.yml@a230d962db64019462c2c8ee400755eb92169908
-    with:
-      package_artifact_name: openclaw-mpp-clawpack
-      dry_run: ${{ github.event_name == 'pull_request' || inputs.dry_run }}
+      actions: read # Download the package artifact from this workflow run.
+      contents: read # Check out this repository and the pinned ClawHub source.
+      id-token: write # Authenticate trusted publishes and bind source provenance.
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: ./.github/actions/clawhub-package-publish
+        with:
+          package_artifact_name: openclaw-mpp-clawpack
+          dry_run: ${{ github.event_name == 'pull_request' || inputs.dry_run }}
