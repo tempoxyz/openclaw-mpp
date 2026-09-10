@@ -1,5 +1,11 @@
 # openclaw-mpp
 
+## 0.2.8
+
+### Patch Changes
+
+- 4e30d56: Refresh the ClawHub CI badge and scope it to the main branch.
+
 ## 0.2.7
 
 ### Patch Changes
