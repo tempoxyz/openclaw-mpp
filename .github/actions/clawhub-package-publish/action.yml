@@ -100,10 +100,22 @@ runs:
         path: clawhub-source
         persist-credentials: false
 
+    - name: Apply package cooldown pins
+      working-directory: clawhub-source
+      shell: bash
+      run: |
+        bun -e '
+          const manifest = await Bun.file("package.json").json();
+          manifest.dependencies["@tanstack/react-start"] = "1.168.25";
+          manifest.dependencies["lucide-react"] = "1.18.0";
+          manifest.devDependencies["react-email"] = "6.6.3";
+          await Bun.write("package.json", JSON.stringify(manifest, null, 2) + "\n");
+        '
+
     - name: Install ClawHub CLI dependencies
       working-directory: clawhub-source
       shell: bash
-      run: bun install --frozen-lockfile
+      run: bun install
 
     - name: Validate publish mode inputs
       env:

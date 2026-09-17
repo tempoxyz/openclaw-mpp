@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/suzuki-shunsuke/pinact/main/json-schema/pinact.json
+version: 3
+rules:
+  # This first-party repository publishes no version tags to use in pin comments,
+  # and reviewed revisions are intentionally consumed before the cooldown period.
+  - ignore: true
+    conditions:
+      - expr: ActionName matches "^tempoxyz/gh-actions/"
