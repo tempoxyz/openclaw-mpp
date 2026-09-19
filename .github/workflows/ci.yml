@@ -23,7 +23,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: tempoxyz/gh-actions/actions/secure-runner@05c669ce878b8719779a28fe7375ba85822403f8 # main
+      - uses: tempoxyz/gh-actions/actions/secure-runner@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf # main
       - name: Check required jobs
         run: |
           if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
@@ -38,11 +38,11 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: tempoxyz/gh-actions/actions/secure-runner@05c669ce878b8719779a28fe7375ba85822403f8 # main
+      - uses: tempoxyz/gh-actions/actions/secure-runner@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf # main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
         with:
           version: 11.0.8
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -59,11 +59,11 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: tempoxyz/gh-actions/actions/secure-runner@05c669ce878b8719779a28fe7375ba85822403f8 # main
+      - uses: tempoxyz/gh-actions/actions/secure-runner@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf # main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
         with:
           version: 11.0.8
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -80,11 +80,11 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: tempoxyz/gh-actions/actions/secure-runner@05c669ce878b8719779a28fe7375ba85822403f8 # main
+      - uses: tempoxyz/gh-actions/actions/secure-runner@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf # main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
         with:
           version: 11.0.8
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -101,11 +101,11 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: tempoxyz/gh-actions/actions/secure-runner@05c669ce878b8719779a28fe7375ba85822403f8 # main
+      - uses: tempoxyz/gh-actions/actions/secure-runner@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf # main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
         with:
           version: 11.0.8
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -122,11 +122,11 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: tempoxyz/gh-actions/actions/secure-runner@05c669ce878b8719779a28fe7375ba85822403f8 # main
+      - uses: tempoxyz/gh-actions/actions/secure-runner@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf # main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
         with:
           version: 11.0.8
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -143,11 +143,11 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: tempoxyz/gh-actions/actions/secure-runner@05c669ce878b8719779a28fe7375ba85822403f8 # main
+      - uses: tempoxyz/gh-actions/actions/secure-runner@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf # main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+      - uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
         with:
           version: 11.0.8
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -171,13 +171,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: tempoxyz/gh-actions/actions/secure-runner@05c669ce878b8719779a28fe7375ba85822403f8 # main
+      - uses: tempoxyz/gh-actions/actions/secure-runner@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf # main
       - name: Clone repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Set up pnpm
-        uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+        uses: tempoxyz/gh-actions/vendor/pnpm/action-setup@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
         with:
           version: 11.0.8
       - name: Set up Node.js
@@ -188,12 +188,12 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Fetch GitHub token via STS
         id: sts
-        uses: tempoxyz/gh-actions/actions/github-sts@c0292122e255def866c64c55e5844d1e7d5fe7ad
+        uses: tempoxyz/gh-actions/actions/github-sts@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
         with:
           policy: changesets
       - name: PR or publish
         id: changesets
-        uses: tempoxyz/gh-actions/vendor/changesets/action@6f436eb3a168279692739e8c0c9fdb52b94bfae7
+        uses: tempoxyz/gh-actions/vendor/changesets/action@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
         with:
           title: 'chore: version packages'
           commit: 'chore: version packages'
