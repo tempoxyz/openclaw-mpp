@@ -88,7 +88,7 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: tempoxyz/gh-actions/vendor/oven-sh/setup-bun@0a60d757d0f4725a34f22f7b9ebf7b91b4b00bcf
+    - uses: tempoxyz/gh-actions/vendor/oven-sh/setup-bun@d39baa2b43f5eba5d261c047521a4fbd56101129 # 2026-09-23T04-31-11Z-d39baa2b
       with:
         bun-version: 1.3.10
 
