@@ -1,5 +1,12 @@
 # openclaw-mpp
 
+## 0.2.8
+
+### Patch Changes
+
+- 2f5b1bc: Updated `mppx` to 0.12.0 and `viem` to 2.57.1.
+- 4e30d56: Refresh the ClawHub CI badge and scope it to the main branch.
+
 ## 0.2.7
 
 ### Patch Changes
