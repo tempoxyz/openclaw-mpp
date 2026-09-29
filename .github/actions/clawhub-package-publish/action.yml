@@ -93,7 +93,7 @@ runs:
         bun-version: 1.3.10
 
     - name: Checkout pinned ClawHub source
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         repository: openclaw/clawhub
         ref: a230d962db64019462c2c8ee400755eb92169908
@@ -510,7 +510,7 @@ runs:
 
     - name: Checkout publish source for plugin inspector
       if: steps.resolve_publish.outputs.inspect_checkout_repository != ''
-      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
         repository: ${{ steps.resolve_publish.outputs.inspect_checkout_repository }}
         ref: ${{ steps.resolve_publish.outputs.inspect_checkout_ref }}
