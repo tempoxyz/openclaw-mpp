@@ -43,9 +43,9 @@
   ],
   "dependencies": {
     "accounts": "^0.15.5",
-    "mppx": "^0.8.15",
+    "mppx": "^0.12.0",
     "typebox": "^1.3.4",
-    "viem": "^2.55.8"
+    "viem": "^2.57.1"
   },
   "peerDependencies": {
     "openclaw": ">=2026.6.11"

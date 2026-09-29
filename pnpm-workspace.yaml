@@ -1,4 +1,8 @@
 minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  # mppx 0.12.0 requires viem >=2.57.1; both releases are newer than the release-age window.
+  - mppx@0.12.0
+  - viem@2.57.1
 trustPolicy: no-downgrade
 trustPolicyExclude:
   # Existing host pin predates this policy and was published without provenance.
