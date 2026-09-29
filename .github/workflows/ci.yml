@@ -195,12 +195,11 @@ jobs:
         id: changesets
         uses: tempoxyz/gh-actions/vendor/changesets/action@55fe3b63d9612623cc51e6c62d9d62fbcb175fb0 # 2026-09-29T01-25-15Z-55fe3b63
         with:
-          title: 'chore: version packages'
-          commit: 'chore: version packages'
-          publish: pnpm changeset:publish
-          version: pnpm changeset:version
-        env:
-          GITHUB_TOKEN: ${{ steps.sts.outputs.token }}
+          github-token: ${{ steps.sts.outputs.token }}
+          pr-title: 'chore: version packages'
+          commit-message: 'chore: version packages'
+          publish-script: pnpm changeset:publish
+          version-script: pnpm changeset:version
       - name: Publish released version to ClawHub
         if: steps.changesets.outputs.published == 'true'
         env:
