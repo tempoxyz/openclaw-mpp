@@ -75,7 +75,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.sha }}
-      - uses: ./.github/actions/clawhub-package-publish
+      - uses: ./.github/actions/clawhub-package-publish # zizmor: ignore[self-repository] actionlint does not support $/ references yet.
         with:
           package_artifact_name: openclaw-mpp-clawpack
           dry_run: ${{ github.event_name == 'pull_request' || inputs.dry_run }}
