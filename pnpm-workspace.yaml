@@ -1,4 +1,4 @@
-minimumReleaseAge: 10080
+minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   # mppx 0.12.0 requires viem >=2.57.1; both releases are newer than the release-age window.
   - mppx@0.12.0
