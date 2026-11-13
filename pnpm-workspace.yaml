@@ -16,7 +16,7 @@ allowBuilds:
   tree-sitter-bash: true
 
 overrides:
-  '@hono/node-server@<2.0.5': '2.0.11'
+  '@hono/node-server@<2.1.6': '2.1.6'
   # The pinned OpenClaw host requires SDK 1.29.0; newer hosts omit runtime-fetch types.
   # Remove once a compatible host release requires SDK >=1.32.0.
   '@modelcontextprotocol/sdk@>=1.0.0 <1.32.0': '1.32.0'
@@ -26,7 +26,7 @@ overrides:
   'hono@<4.13.13': '4.13.13'
   'js-yaml@>=3.0.0 <3.15.2': '3.15.2'
   'js-yaml@>=4.0.0 <4.3.2': '4.3.2'
-  'qs@<6.16.0': '6.16.0'
+  'qs@<6.16.1': '6.16.1'
   tar@<=7.5.20: '7.5.21'
   # OpenClaw pins 8.5.0; newer hosts omit the runtime-fetch types this plugin uses.
   # Remove once a compatible host release pins a fixed undici version.
