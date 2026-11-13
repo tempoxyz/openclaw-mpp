@@ -27,6 +27,10 @@ overrides:
   'js-yaml@>=3.0.0 <3.15.2': '3.15.2'
   'js-yaml@>=4.0.0 <4.3.2': '4.3.2'
   'qs@<6.16.1': '6.16.1'
+  # The dev-only OpenClaw host pins glob 13 and minimatch 10 (the latest host still pins minimatch 10.2.6).
+  # It only calls globSync and minimatch(), which glob 14 and minimatch 11 keep. Remove once the host moves.
+  'openclaw>glob': '14.0.3'
+  'openclaw>minimatch': '11.0.5'
   tar@<=7.5.20: '7.5.21'
   # OpenClaw pins 8.5.0; newer hosts omit the runtime-fetch types this plugin uses.
   # Remove once a compatible host release pins a fixed undici version.
