@@ -5,15 +5,12 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@hono/node-server@<2.1.6': 2.1.6
   '@modelcontextprotocol/sdk@>=1.0.0 <1.32.0': 1.32.0
   '@toon-format/toon@<2.3.1': 2.3.1
   brace-expansion@>=4.0.0 <5.0.12: 5.0.12
   fast-uri@>=3.0.0 <3.1.9: 3.1.9
-  hono@<4.13.16: 4.13.16
   js-yaml@>=3.0.0 <3.15.2: 3.15.2
   js-yaml@>=4.0.0 <4.3.2: 4.3.2
-  qs@<6.16.1: 6.16.1
   openclaw>glob: 14.0.3
   openclaw>minimatch: 11.0.5
   tar@<=7.5.20: 7.5.21
@@ -21,6 +18,7 @@ overrides:
   zod@>=4.0.0 <4.6.6: 4.6.7
   body-parser@>=2.0.0 <2.4.0: 2.4.0
   ip-address@<=10.7.3: 10.7.4
+  wata>@hono/node-server: 2.1.6
 
 importers:
 
@@ -197,7 +195,7 @@ packages:
     resolution: {integrity: sha512-p/KH9MnfNcsm3sR6x4lNgm5j+QN4Et8srKredl9DZfXiyZ1UQ3aQ2YVpFLbqktYN5JI+DB+VZFKM2PqE5hLKjQ==}
     engines: {node: '>=20'}
     peerDependencies:
-      hono: 4.13.16
+      hono: ^4 || ^5.0.0-0
 
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
@@ -1198,7 +1196,7 @@ packages:
       '@x402/next': '>=2.22.0'
       elysia: '>=1'
       express: '>=5'
-      hono: 4.13.16
+      hono: '>=4.12.25'
       next: '>=16.2.6'
       viem: '>=2.57.1'
     peerDependenciesMeta:
@@ -1230,7 +1228,7 @@ packages:
       '@modelcontextprotocol/sdk': 1.32.0
       elysia: '>=1'
       express: '>=5'
-      hono: 4.13.16
+      hono: '>=4.12.25'
       viem: '>=2.54.0'
     peerDependenciesMeta:
       '@modelcontextprotocol/sdk':
