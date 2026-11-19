@@ -21,7 +21,7 @@ Maintained by [Tempo](https://tempo.xyz), the team behind
 Install from ClawHub, connect Tempo Wallet, and restart the active gateway:
 
 ```bash
-openclaw plugins install clawhub:openclaw-mpp
+openclaw plugins install clawhub:openclaw-mpp --accept-capabilities
 openclaw mpp setup
 openclaw gateway restart
 ```
@@ -33,10 +33,15 @@ openclaw mpp status
 openclaw plugins inspect mpp --runtime --json
 ```
 
+OpenClaw 2026.11 and later refuse to install a plugin until you accept the capabilities it
+declares, so the install command passes `--accept-capabilities`. Without it, OpenClaw prints
+`Plugin "mpp" requires capability consent` and installs nothing. Older OpenClaw versions ignore
+the flag.
+
 During OpenClaw's registry transition, npm remains available as an explicit fallback:
 
 ```bash
-openclaw plugins install npm:openclaw-mpp
+openclaw plugins install npm:openclaw-mpp --accept-capabilities
 ```
 
 ## Make a first paid request
@@ -51,6 +56,10 @@ This request spends USDC.e on Tempo mainnet. A successful request returns HTTP 2
 the payment receipt, and contains live Exa search results. If OpenClaw selects its built-in
 `web_fetch` tool instead, explicitly ask it to use `mpp_fetch`; built-in `web_fetch` is not
 payment-aware.
+
+Every Tempo charge the plugin pays carries `openclaw-mpp` as the client ID in its MPP
+attribution memo, so payments made through OpenClaw can be told apart onchain. The memo holds
+only a hash of that fixed ID, nothing about the user or the request.
 
 ## Connect a wallet
 

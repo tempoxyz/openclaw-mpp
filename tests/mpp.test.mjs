@@ -5,8 +5,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, test } from 'node:test'
 import { Provider as TempoProvider } from 'accounts/cli'
+import { local, Provider as AccountsProvider, Storage } from 'accounts'
 import { Handler } from 'accounts/server'
-import { Account, Formatters } from 'viem/tempo'
+import { Account } from 'viem/tempo'
 import { tempo, tempoModerato } from 'viem/tempo/chains'
 import {
   beginWalletSetup,
@@ -276,13 +277,13 @@ for (const [network, chain] of Object.entries({ mainnet: tempo, testnet: tempoMo
         storagePath: join(storageDir, 'wallet.json'),
       },
     }
-    const server = await createCodeAuthServer()
+    const server = await createDeviceCodeServer()
     const policy = resolveSetupPolicy({ network }, Date.now())
 
     try {
       const pending = await beginWalletSetup(config, {
         ...policy,
-        host: `${server.url}/cli-auth`,
+        host: `${server.url}/auth/device`,
         pollIntervalMs: 10,
         providerFactory: createTestTempoProvider,
         timeoutMs: 2_000,
@@ -290,15 +291,20 @@ for (const [network, chain] of Object.entries({ mainnet: tempo, testnet: tempoMo
 
       assert.equal(pending.ready, false)
       assert.equal(pending.setup, 'pending')
-      assert.match(pending.setupUrl, new RegExp(`^${server.url}/cli-auth\\?code=`))
+      assert.match(
+        pending.setupUrl,
+        new RegExp(`^${server.url}/auth/device/verify\\?user_code=[A-Z]{4}-?[A-Z]{4}$`),
+      )
 
-      const request = await approveDeviceCode(pending.setupUrl, server.url)
-      assert.equal(request.expiry, policy.expiry)
-      assert.equal(Number(request.chainId), chain.id)
-      assert.deepEqual(request.limits, [
+      const request = await approveDeviceCode(pending.setupUrl)
+      assert.equal(request.method, 'wallet_connect')
+      const { authorizeAccessKey, showDeposit } = request.params[0].capabilities
+      assert.equal(authorizeAccessKey.expiry, policy.expiry)
+      assert.equal(Number(authorizeAccessKey.chainId), chain.id)
+      assert.deepEqual(authorizeAccessKey.limits, [
         { limit: '0x989680', token: policy.limits[0].token },
       ])
-      assert.deepEqual(request.showDeposit, policy.showDeposit)
+      assert.deepEqual(showDeposit, policy.showDeposit)
 
       const ready = await waitForWallet(config, network, {
         providerFactory: createTestTempoProvider,
@@ -712,56 +718,54 @@ async function writeWalletStore(path, state) {
   )
 }
 
-async function approveDeviceCode(setupUrl, serverUrl) {
-  const code = new URL(setupUrl).searchParams.get('code')
-  const response = await originalFetch(`${serverUrl}/cli-auth/pending/${code}`)
+async function approveDeviceCode(setupUrl) {
+  const userCode = new URL(setupUrl).searchParams.get('user_code')
+  const response = await originalFetch(setupUrl, { headers: { accept: 'application/json' } })
   assert.equal(response.status, 200)
-  const pending = await response.json()
-  const limits = pending.limits?.map(({ limit, token }) => ({ limit: BigInt(limit), token }))
-  const signed = await root.signKeyAuthorization(
-    {
-      accessKeyAddress: pending.accessKeyAddress,
-      keyType: pending.keyType,
-    },
-    {
-      chainId: BigInt(pending.chainId),
-      expiry: pending.expiry,
-      ...(limits ? { limits } : {}),
-    },
-  )
-  const keyAuthorization = Formatters.formatTransactionRequest({
-    keyAuthorization: signed,
-    type: 'tempo',
-  }).keyAuthorization
-  const authorized = await originalFetch(`${serverUrl}/cli-auth`, {
+  const { requests } = await response.json()
+  assert.equal(requests.length, 1)
+  const [request] = requests
+
+  const wallet = AccountsProvider.create({
+    adapter: local({
+      createAccount: async () => ({ accounts: [root] }),
+      loadAccounts: async () => ({ accounts: [root] }),
+    }),
+    chains: [tempo, tempoModerato],
+    storage: Storage.memory(),
+  })
+  wallet.store.setState({ accounts: [root] })
+  const chainId = request.context?.chainId
+  if (chainId !== undefined)
+    await wallet.request({
+      method: 'wallet_switchEthereumChain',
+      params: [{ chainId: `0x${chainId.toString(16)}` }],
+    })
+  const result = await wallet.request({ method: request.method, params: request.params })
+
+  const approved = await originalFetch(new URL('/auth/device/verify', setupUrl), {
     body: JSON.stringify({
-      accountAddress: root.address,
-      code,
-      keyAuthorization: {
-        ...keyAuthorization,
-        address: keyAuthorization.keyId,
-      },
+      action: 'approve',
+      results: [{ id: request.id, result }],
+      user_code: userCode,
     }),
     headers: { 'content-type': 'application/json' },
     method: 'POST',
   })
-  assert.equal(authorized.status, 200, await authorized.text())
-  return pending
+  assert.equal(approved.status, 200, await approved.text())
+  return request
 }
 
-async function createCodeAuthServer() {
-  const handler = Handler.codeAuth({
-    chains: [tempo, tempoModerato],
-    path: '/cli-auth',
-    policy: {
-      validate({ expiry, limits }) {
-        return {
-          expiry,
-          ...(limits ? { limits } : {}),
-        }
-      },
+async function createDeviceCodeServer() {
+  const handler = Handler.deviceCode({
+    html: {
+      render: ({ record, userCode }) =>
+        record
+          ? Response.json({ requests: record.message.payload, user_code: userCode })
+          : Response.json({ error: 'unknown_code' }, { status: 404 }),
     },
-    rateLimit: false,
+    pollingInterval: 10,
+    validate: () => undefined,
   })
   const server = createServer(handler.listener)
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))

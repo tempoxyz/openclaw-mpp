@@ -68,10 +68,11 @@ type TempoStoreInstance = {
   }
   setState: (state: Partial<TempoStore.State>) => void
 }
-type TempoProviderOptions = Pick<
-  TempoProvider.create.Options,
-  'host' | 'open' | 'pollIntervalMs' | 'timeoutMs'
-> & {
+type TempoProviderOptions = Pick<TempoProvider.create.Options, 'host' | 'open'> & {
+  /** Device-code poll cadence in milliseconds. */
+  pollIntervalMs?: number
+  /** Overall wait for wallet approval in milliseconds. */
+  timeoutMs?: number
   fetch?: typeof globalThis.fetch
   polyfill?: boolean
   providerFactory?: typeof TempoProvider.create
@@ -84,6 +85,12 @@ export type WalletSetupOptions = TempoProviderOptions & {
 }
 
 const defaultAccessKeyTtlSeconds = 7 * 24 * 60 * 60
+
+/**
+ * Client identity written into the attribution memo of every Tempo charge, so
+ * payments made through this plugin are identifiable onchain.
+ */
+export const mppClientId = 'openclaw-mpp'
 
 let cached: { client: MppxClient; key: string } | undefined
 
@@ -122,6 +129,7 @@ export async function createMppx(
     methods: [
       tempo({
         ...source.parameters,
+        clientId: mppClientId,
         channelStore: persistentChannelStore(config.wallet, source.payer),
       }),
     ],
@@ -229,10 +237,27 @@ export async function setupWallet(
     ...(options.limits ? { limits: options.limits } : {}),
     ...(options.showDeposit !== undefined ? { showDeposit: options.showDeposit } : {}),
   }
-  await provider.request({
-    method: 'wallet_authorizeAccessKey',
-    params: [parameters],
-  })
+  const accounts = (await provider.request({ method: 'eth_accounts' })) as readonly string[]
+  if (accounts.length === 0) {
+    // accounts >= 0.16 authorizes keys only for a connected account, so a
+    // first setup connects and authorizes the access key in one approval.
+    const { showDeposit, ...authorizeAccessKey } = parameters
+    await provider.request({
+      method: 'wallet_connect',
+      params: [
+        {
+          capabilities: {
+            authorizeAccessKey,
+            ...(showDeposit !== undefined ? { showDeposit } : {}),
+          },
+        },
+      ],
+    })
+  } else
+    await provider.request({
+      method: 'wallet_authorizeAccessKey',
+      params: [parameters],
+    })
 
   return publishTempoAccessKey(
     provider,
@@ -351,11 +376,11 @@ async function createTempoProvider(
     host: options.host,
     mpp: false,
     open: options.open,
-    pollIntervalMs: options.pollIntervalMs,
+    pollingInterval: options.pollIntervalMs,
     storage: wallet.storagePath
       ? TempoStorage.filesystem({ path: wallet.storagePath })
       : TempoStorage.filesystem(),
-    timeoutMs: options.timeoutMs,
+    timeout: options.timeoutMs,
   }) as TempoProviderInstance
   if (!provider.store.persist.hasHydrated()) await provider.store.persist.rehydrate()
   if (chainId !== undefined) provider.store.setState({ chainId })

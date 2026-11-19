@@ -1,8 +1,4 @@
 minimumReleaseAge: 1440
-minimumReleaseAgeExclude:
-  # mppx 0.12.0 requires viem >=2.57.1; both releases are newer than the release-age window.
-  - mppx@0.12.0
-  - viem@2.57.1
 trustPolicy: no-downgrade
 trustPolicyExclude:
   # Existing host pin predates this policy and was published without provenance.
@@ -23,7 +19,10 @@ overrides:
   '@toon-format/toon@<2.3.1': '2.3.1'
   'brace-expansion@>=4.0.0 <5.0.12': '5.0.12'
   'fast-uri@>=3.0.0 <3.1.9': '3.1.9'
-  'hono@<4.13.13': '4.13.13'
+  'hono@<4.13.16': '4.13.19'
+  # accounts 0.21.1 still declares mppx ^0.12; share the plugin's mppx so the
+  # provider's mppx parameters and the plugin's client use one mppx version.
+  'accounts>mppx': '0.20.1'
   'js-yaml@>=3.0.0 <3.15.2': '3.15.2'
   'js-yaml@>=4.0.0 <4.3.2': '4.3.2'
   'qs@<6.16.1': '6.16.1'
