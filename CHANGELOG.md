@@ -1,5 +1,16 @@
 # openclaw-mpp
 
+## 0.2.8
+
+### Patch Changes
+
+- 2f5b1bc: Updated `mppx` to 0.12.0 and `viem` to 2.57.1.
+- 4e30d56: Refresh the ClawHub CI badge and scope it to the main branch.
+- 381c122: Updated `mppx` to 0.20.1, `accounts` to 0.21.1 and `viem` to 2.58.0. Tempo Wallet setup now uses
+  the Tempo Wallet device-code flow and connects the wallet and authorizes the access key in one
+  approval. Tempo charges now set `openclaw-mpp` as the MPP attribution client ID, and the install
+  instructions pass `--accept-capabilities` for OpenClaw 2026.11 and later.
+
 ## 0.2.7
 
 ### Patch Changes
