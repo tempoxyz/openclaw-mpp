@@ -9,7 +9,7 @@ subscription for every service. The plugin installs a payment-aware fetch in the
 so HTTP and fetch-backed MCP calls can handle MPP HTTP 402 charges and streaming sessions
 using a capped, expiring Tempo Wallet access key.
 
-Maintained by [Tempo](https://tempo.xyz), the team behind
+Maintained by [Tempo](https://tempo.com), the team behind
 [MPP](https://mpp.dev).
 
 ## Quick start
